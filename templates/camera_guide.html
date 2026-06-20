@@ -1,0 +1,144 @@
+{% extends "base.html" %}
+
+{% block title %}Camera Setup — the CREASE Batting Lab{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-8">
+        <div class="card border-0" style="background: #1e1e3a;">
+            <div class="card-header" style="background: transparent; border-bottom: 1px solid #2a2a4a;">
+                <h4 class="mb-0" style="color: #ffd700;">
+                    <i class="bi bi-camera"></i> Camera Setup Guide
+                </h4>
+            </div>
+            <div class="card-body p-3 p-md-4">
+
+                <!-- Quick reference table -->
+                <div class="table-responsive mb-4">
+                    <table class="table table-dark table-bordered mb-0" style="background: transparent;">
+                        <thead>
+                            <tr style="color: #ffd700;">
+                                <th>View</th>
+                                <th>Position</th>
+                                <th>Distance from Crease</th>
+                                <th>Camera Height</th>
+                                <th>Best For</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><span class="badge" style="background: #66bb6a;">★ Best</span> Side-on (Off side)</td>
+                                <td>
+                                    <strong>Right-hander:</strong> left side of batter<br>
+                                    <strong>Left-hander:</strong> right side of batter
+                                </td>
+                                <td>8–12 m (25–40 ft)</td>
+                                <td>Batter's chest height</td>
+                                <td>Bat swing path, front elbow, spine angle, ball line</td>
+                            </tr>
+                            <tr>
+                                <td>Front-on (Bowler's end)</td>
+                                <td>Behind bowler's stumps, in line with middle stump</td>
+                                <td>20.12 m (22 yds — full pitch length)</td>
+                                <td>Head height or slightly above</td>
+                                <td>Ball line/length, head position, bat face angle</td>
+                            </tr>
+                            <tr>
+                                <td>Side-on (Leg side)</td>
+                                <td>
+                                    <strong>Right-hander:</strong> right side of batter<br>
+                                    <strong>Left-hander:</strong> left side of batter
+                                </td>
+                                <td>8–12 m (25–40 ft)</td>
+                                <td>Chest height</td>
+                                <td>Backlift, back foot movement, wrist work</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <hr style="border-color: #2a2a4a;">
+
+                <!-- Detailed guide -->
+                <h5 style="color: #4fc3f7;">🎯 Recommended: Side-on, Off Side (90°)</h5>
+                <p style="color: #99aabb;">
+                    This is the <strong>industry standard</strong> for batting analysis.
+                    It gives you the clearest picture of the batter's technique.
+                </p>
+
+                <div class="mb-4 p-3 rounded" style="background: #0f3460;">
+                    <h6 style="color: #ffd700;">Why the off side?</h6>
+                    <ul style="color: #c0d0e0;">
+                        <li>You see the <strong>bat face opening</strong> toward the camera — critical for judging swing path</li>
+                        <li><strong>Front elbow</strong> and shoulder position are clearly visible</li>
+                        <li><strong>Spine angle</strong> and side-on body shape are readable</li>
+                        <li>The <strong>ball's line</strong> relative to off stump is visible</li>
+                        <li><strong>Head position</strong> over the front knee is evaluable</li>
+                    </ul>
+                </div>
+
+                <h5 style="color: #4fc3f7;">🎥 Ideal Two-Camera Setup</h5>
+                <p style="color: #99aabb;">
+                    If you have two phones/cameras, this is the gold standard:
+                </p>
+                <div class="row g-2 mb-4">
+                    <div class="col-md-6">
+                        <div class="p-3 rounded" style="background: #1a1a2e; height: 100%;">
+                            <h6 style="color: #ffd700;">Camera 1: Side-on (Off side)</h6>
+                            <p style="color: #99aabb; font-size: 0.9rem;">
+                                For <strong>technique analysis</strong> — shape, swing, balance.
+                                Place 10 m from popping crease at chest height.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="p-3 rounded" style="background: #1a1a2e; height: 100%;">
+                            <h6 style="color: #ffd700;">Camera 2: Front-on (Bowler's end)</h6>
+                            <p style="color: #99aabb; font-size: 0.9rem;">
+                                For <strong>line & length analysis</strong> — ball tracking,
+                                foot placement, bat face angle.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <h5 style="color: #4fc3f7;">📱 Recording Tips (Phone)</h5>
+                <div class="row g-2 mb-4">
+                    <div class="col-sm-6">
+                        <ul style="color: #c0d0e0;">
+                            <li>📌 Use a <strong>tripod</strong> — steady footage is essential</li>
+                            <li>🌞 <strong>Good lighting</strong> — avoid backlight / silhouettes</li>
+                            <li>👤 <strong>Full body visible</strong> — head to toe in frame</li>
+                            <li>📐 <strong>Landscape mode</strong> (horizontal) always</li>
+                        </ul>
+                    </div>
+                    <div class="col-sm-6">
+                        <ul style="color: #c0d0e0;">
+                            <li>⚡ 1080p at <strong>30fps or 60fps</strong> is ideal</li>
+                            <li>🎯 Avoid <strong>digital zoom</strong> — move closer instead</li>
+                            <li>🔇 Record with sound — bat-on-ball impact helps phase detection</li>
+                            <li>📏 Mark 22 yards (pitch length) in frame for speed calibration</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="alert" style="background: #3a2a1a; border: 1px solid #5a3a1a; color: #ffd700;">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Pro tip:</strong> For the most accurate ball speed and trajectory,
+                    include both sets of stumps in the frame and ensure the calibration
+                    markers (22-yard pitch) are visible.
+                </div>
+
+                <hr style="border-color: #2a2a4a;">
+
+                <div class="text-center">
+                    <a href="{{ url_for('upload') }}" class="btn btn-lg fw-bold"
+                       style="background: #ffd700; color: #1a1a2e;">
+                        <i class="bi bi-cloud-upload"></i> Got it — Start Analysis
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

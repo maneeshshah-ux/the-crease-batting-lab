@@ -1,0 +1,22 @@
+# =============================================================================
+# nixpacks.toml — Railway Deployment Configuration
+# =============================================================================
+# Railway uses Nixpacks (https://nixpacks.com) to auto-detect the stack.
+# This file provides hints for a smoother deploy.
+# =============================================================================
+
+[phases]
+  # Install OpenCV + MediaPipe system libs before pip install
+  [phases.setup]
+    nixPkgs = [
+      "gcc",
+      "glib",
+      "libGL",
+      "libSM",
+      "libXext",
+      "libXrender",
+    ]
+
+[deploy]
+  startCommand = "gunicorn --bind 0.0.0.0:$PORT --workers 2 --timeout 300 --access-logfile - --error-logfile - app:app"
+  healthCheckPath = "/"

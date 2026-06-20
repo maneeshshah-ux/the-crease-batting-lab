@@ -1,0 +1,31 @@
+# =============================================================================
+# Render Blueprint — the CREASE Batting Lab
+# =============================================================================
+# Deploy button:
+#   https://render.com/deploy?repo=https://github.com/YOUR_USER/batting_analyser
+#
+# 1. Fork / push this repo to GitHub
+# 2. Click the deploy button above (or connect Render to your repo manually)
+# 3. Render builds using the Dockerfile and deploys
+# =============================================================================
+
+services:
+  - type: web
+    name: the-crease-batting-lab
+    runtime: image
+    repo: https://github.com/YOUR_USER/batting_analyser
+    branch: main
+    plan: free
+
+    # Use the Dockerfile in the repo root
+    dockerfilePath: ./Dockerfile
+
+    # Render injects the PORT env var automatically; gunicorn reads it
+    envVars:
+      - key: PYTHONUNBUFFERED
+        value: "1"
+      - key: SECRET_KEY
+        generateValue: true    # random secret on first deploy
+
+    # Health check path
+    healthCheckPath: /

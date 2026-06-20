@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+
+{% block title %}Session — the CREASE Batting Lab{% endblock %}
+
+{% block content %}
+<div class="row mb-3">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small" style="background: transparent;">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}" style="color: #8899aa;">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('sessions_list') }}" style="color: #8899aa;">Sessions</a></li>
+                <li class="breadcrumb-item active" style="color: #ffd700;">{{ session.session_id[:8] }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- Session Header -->
+<div class="row mb-3">
+    <div class="col-12">
+        <div class="card border-0" style="background: #1e1e3a;">
+            <div class="card-body p-3">
+                <div class="d-flex flex-wrap justify-content-between align-items-center">
+                    <h5 class="mb-2" style="color: #ffd700;">
+                        <i class="bi bi-film"></i> Session Analysis
+                    </h5>
+                    <div class="d-flex gap-2">
+                        <a href="{{ url_for('download_session', session_id=session.session_id, filetype='json') }}"
+                           class="btn btn-sm btn-outline-light">JSON</a>
+                        {% if session.output_video_path %}
+                        <a href="{{ url_for('download_session', session_id=session.session_id, filetype='video') }}"
+                           class="btn btn-sm" style="background: #ffd700; color: #1a1a2e;">
+                            <i class="bi bi-download"></i> Analysed Video
+                        </a>
+                        {% endif %}
+                        <form action="{{ url_for('delete_session', session_id=session.session_id) }}"
+                              method="POST" class="d-inline"
+                              onsubmit="return confirm('Delete this session?')">
+                            <button type="submit" class="btn btn-sm btn-outline-danger">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                <div class="row mt-2 g-1 small" style="color: #99aabb;">
+                    <div class="col-4 col-md-2">
+                        <span style="color: #667788;">Video:</span><br>
+                        <span>{{ session.video_path.rsplit('/', 1)[-1]|truncate(20) }}</span>
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <span style="color: #667788;">Duration:</span><br>
+                        <span>{{ "%.1f"|format(session.duration_sec) }}s</span>
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <span style="color: #667788;">Shots:</span><br>
+                        <span class="badge" style="background: #ffd700; color: #1a1a2e;">{{ session.num_shots_detected }}</span>
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <span style="color: #667788;">Hand:</span><br>
+                        <span>{{ session.batting_hand }}</span>
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <span style="color: #667788;">Ball:</span><br>
+                        <span>{{ session.ball_color }}</span>
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <span style="color: #667788;">Camera:</span><br>
+                        <span>{{ session.camera_view if session.camera_view else 'side_off' }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- Video -->
+    <div class="col-lg-8">
+        <div class="card border-0" style="background: #000;">
+            <div class="card-body p-0">
+                {% if session.output_video_path %}
+                <video class="w-100" controls style="max-height: 500px; display: block;">
+                    <source src="{{ url_for('download_session', session_id=session.session_id, filetype='video') }}"
+                            type="video/mp4">
+                </video>
+                {% else %}
+                <div class="text-center py-5" style="color: #667788;">
+                    <i class="bi bi-camera-video-off" style="font-size: 3rem;"></i>
+                    <p class="mt-2">Analysed video not available.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Charts -->
+        <div class="card border-0 mt-3" style="background: #1e1e3a;">
+            <div class="card-header" style="background: transparent; border-bottom: 1px solid #2a2a4a;">
+                <h6 class="mb-0" style="color: #4fc3f7;"><i class="bi bi-bar-chart"></i> Charts</h6>
+            </div>
+            <div class="card-body p-3">
+                {% if session.charts.knee_angles %}
+                <img src="data:image/png;base64,{{ session.charts.knee_angles }}"
+                     class="img-fluid mb-3" alt="Knee Angles">
+                {% endif %}
+                {% if session.charts.bat_speed %}
+                <img src="data:image/png;base64,{{ session.charts.bat_speed }}"
+                     class="img-fluid mb-3" alt="Bat Speed">
+                {% endif %}
+                {% if session.charts.head_stability %}
+                <img src="data:image/png;base64,{{ session.charts.head_stability }}"
+                     class="img-fluid" alt="Head Stability">
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="col-lg-4">
+        <!-- Metrics -->
+        <div class="card border-0 mb-3" style="background: #1e1e3a;">
+            <div class="card-header" style="background: transparent; border-bottom: 1px solid #2a2a4a;">
+                <h6 class="mb-0" style="color: #ffd700;"><i class="bi bi-graph-up"></i> Key Metrics</h6>
+            </div>
+            <div class="card-body p-3">
+                {% set s = session.session_summary %}
+                <table class="table table-sm table-dark mb-0" style="background: transparent;">
+                    <tbody>
+                        <tr><td>Front Knee</td><td class="text-end fw-bold" style="color: #ffd700;">{{ "%.1f°"|format(s.avg_front_knee_angle) if s.avg_front_knee_angle else '-' }}</td></tr>
+                        <tr><td>Back Knee</td><td class="text-end fw-bold" style="color: #ffd700;">{{ "%.1f°"|format(s.avg_back_knee_angle) if s.avg_back_knee_angle else '-' }}</td></tr>
+                        <tr><td>Front Elbow</td><td class="text-end fw-bold" style="color: #ffd700;">{{ "%.1f°"|format(s.avg_front_elbow_angle) if s.avg_front_elbow_angle else '-' }}</td></tr>
+                        <tr><td>Spine Lean</td><td class="text-end fw-bold" style="color: #ffd700;">{{ "%.1f°"|format(s.avg_spine_angle) if s.avg_spine_angle else '-' }}</td></tr>
+                        <tr><td>Head Stability</td><td class="text-end fw-bold" style="color: #ffd700;">{{ "%.1f/100"|format(s.head_stability_score) if s.head_stability_score else '-' }}</td></tr>
+                        <tr><td>Stance Width</td><td class="text-end fw-bold" style="color: #ffd700;">{{ "%.0f"|format(s.avg_stance_width) if s.avg_stance_width else '-' }} px</td></tr>
+                    </tbody>
+                </table>
+                {% if session.ball_speed.estimated %}
+                    <hr style="border-color: #2a2a4a;">
+                    <small style="color: #99aabb;">Ball Speed:
+                        {% if session.ball_speed.speed_kmh %}
+                            <span style="color: #ffd700;">{{ "%.1f"|format(session.ball_speed.speed_kmh) }} km/h</span>
+                        {% endif %}
+                    </small>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Coaching Tips -->
+        {% if session.coaching_tips %}
+        <div class="card border-0 mb-3" style="background: #1e1e3a;">
+            <div class="card-header" style="background: transparent; border-bottom: 1px solid #2a2a4a;">
+                <h6 class="mb-0" style="color: #ffd700;"><i class="bi bi-chat-quote"></i> Coaching Tips</h6>
+            </div>
+            <div class="card-body p-3">
+                {% for tip in session.coaching_tips %}
+                <div class="alert py-2 mb-2 small border-0"
+                     style="background: {% if tip.severity == 'high' %}#3a1a1a; color: #ff6b6b;
+                            {% elif tip.severity == 'medium' %}#3a2a1a; color: #ffd700;
+                            {% elif tip.severity == 'low' %}#1a2a3a; color: #4fc3f7;
+                            {% else %}#1a1a2e; color: #99aabb;{% endif %}">
+                    <strong>{{ tip.observation }}</strong>
+                    {% if tip.suggestion %}
+                    <p class="mb-0 mt-1">{{ tip.suggestion }}</p>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Shots -->
+<div class="row mt-3">
+    <div class="col-12">
+        <div class="card border-0" style="background: #1e1e3a;">
+            <div class="card-header" style="background: transparent; border-bottom: 1px solid #2a2a4a;">
+                <h6 class="mb-0" style="color: #ffd700;">
+                    <i class="bi bi-list-check"></i> Shots Detected ({{ session.num_shots_detected }})
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                {% if session.shot_summary %}
+                <div class="table-responsive">
+                    <table class="table table-dark table-hover mb-0" style="background: transparent;">
+                        <thead>
+                            <tr style="color: #667788;">
+                                <th>#</th>
+                                <th>Frames</th>
+                                <th>Duration</th>
+                                <th>Phases</th>
+                                <th>Impact</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for shot in session.shot_summary %}
+                            <tr>
+                                <td style="color: #ffd700;">{{ shot.shot_number }}</td>
+                                <td>{{ shot.start_frame }}–{{ shot.end_frame }}</td>
+                                <td>{{ "%.2f"|format(shot.duration_sec) }}s</td>
+                                <td>
+                                    {% for p in shot.phases %}
+                                    <span class="badge me-1" style="background: #0f3460;">{{ p.replace('_',' ') }}</span>
+                                    {% endfor %}
+                                </td>
+                                <td>
+                                    {% if shot.has_impact %}
+                                    <span class="badge" style="background: #66bb6a;">Yes</span>
+                                    {% else %}
+                                    <span class="badge" style="background: #ffa726;">Partial</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4" style="color: #667788;">
+                    <p class="mb-0">No shots detected. Try a side-on view video.</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

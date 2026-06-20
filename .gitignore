@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+uploads/
+sessions/
+reports/
+frames/
+*.apk
+.DS_Store
+.vscode/
+.idea/
+*.egg-info/
+dist/
+build/

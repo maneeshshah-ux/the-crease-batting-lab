@@ -1,0 +1,300 @@
+/*
+ * the CREASE Batting Lab — Styles
+ * Dark theme, mobile-first, cricket-focused design.
+ */
+
+/* ============================================================
+   BASE
+   ============================================================ */
+:root {
+    --crease-bg: #1a1a2e;
+    --crease-bg-card: #1e1e3a;
+    --crease-gold: #ffd700;
+    --crease-blue: #4fc3f7;
+    --crease-green: #66bb6a;
+    --crease-red: #ff6b6b;
+    --crease-text: #99aabb;
+    --crease-text-light: #c0d0e0;
+    --crease-border: #2a2a4a;
+}
+
+body {
+    background: var(--crease-bg);
+    color: var(--crease-text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    font-size: 0.95rem;
+    -webkit-tap-highlight-color: transparent;
+}
+
+main { flex: 1; }
+
+/* ============================================================
+   TYPOGRAPHY
+   ============================================================ */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--crease-gold);
+}
+
+a {
+    color: var(--crease-blue);
+}
+
+a:hover {
+    color: var(--crease-gold);
+}
+
+/* ============================================================
+   SCROLLBAR
+   ============================================================ */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #1a1a2e; }
+::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #5a5a7a; }
+
+/* ============================================================
+   CARDS
+   ============================================================ */
+.card {
+    border: none;
+    background: var(--crease-bg-card);
+}
+
+.card-header {
+    background: transparent;
+    border-bottom: 1px solid var(--crease-border);
+    font-weight: 500;
+}
+
+.card-body {
+    color: var(--crease-text);
+}
+
+/* ============================================================
+   TABLES
+   ============================================================ */
+.table {
+    margin-bottom: 0;
+    color: var(--crease-text);
+}
+
+.table > :not(caption) > * > * {
+    background: transparent;
+    border-bottom: 1px solid var(--crease-border);
+    vertical-align: middle;
+}
+
+.table-hover > tbody > tr:hover > * {
+    background: rgba(255, 215, 0, 0.05);
+}
+
+.table-dark {
+    --bs-table-color: var(--crease-text);
+    --bs-table-bg: transparent;
+    --bs-table-border-color: var(--crease-border);
+    --bs-table-striped-bg: rgba(255,255,255,0.02);
+    --bs-table-hover-color: #fff;
+}
+
+/* ============================================================
+   FORMS
+   ============================================================ */
+.form-control, .form-select {
+    background: #1a1a2e;
+    border: 1px solid #3a3a5a;
+    color: #e0e0e0;
+}
+
+.form-control:focus, .form-select:focus {
+    background: #1a1a2e;
+    border-color: var(--crease-gold);
+    box-shadow: 0 0 0 0.2rem rgba(255, 215, 0, 0.15);
+    color: #e0e0e0;
+}
+
+.form-check-input {
+    background: #2a2a4a;
+    border-color: #4a4a6a;
+}
+
+.form-check-input:checked {
+    background: var(--crease-gold);
+    border-color: var(--crease-gold);
+}
+
+.form-text {
+    color: #667788;
+}
+
+/* ============================================================
+   BUTTONS
+   ============================================================ */
+.btn-gold {
+    background: var(--crease-gold);
+    color: var(--crease-bg);
+    font-weight: 600;
+}
+
+.btn-gold:hover {
+    background: #e6c200;
+    color: var(--crease-bg);
+}
+
+.btn-outline-crease {
+    border: 1px solid var(--crease-gold);
+    color: var(--crease-gold);
+    background: transparent;
+}
+
+.btn-outline-crease:hover {
+    background: var(--crease-gold);
+    color: var(--crease-bg);
+}
+
+/* ============================================================
+   BADGES
+   ============================================================ */
+.badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+}
+
+/* ============================================================
+   ALERTS
+   ============================================================ */
+.alert {
+    border: none;
+    border-radius: 0.4rem;
+}
+
+/* ============================================================
+   PROGRESS
+   ============================================================ */
+.progress {
+    background: var(--crease-border);
+}
+
+/* ============================================================
+   HERO
+   ============================================================ */
+.hero {
+    border: 1px solid rgba(255, 215, 0, 0.1);
+}
+
+/* ============================================================
+   FOOTER
+   ============================================================ */
+.footer {
+    border-top: 1px solid var(--crease-border);
+}
+
+/* ============================================================
+   BREADCRUMB
+   ============================================================ */
+.breadcrumb-item + .breadcrumb-item::before {
+    color: #667788;
+}
+
+.breadcrumb-item.active {
+    color: var(--crease-gold);
+}
+
+/* ============================================================
+   BADGE COLORS
+   ============================================================ */
+.bg-crease-gold { background: var(--crease-gold); color: var(--crease-bg); }
+.bg-crease-blue { background: var(--crease-blue); }
+.bg-crease-green { background: var(--crease-green); }
+.bg-crease-red { background: var(--crease-red); }
+
+/* ============================================================
+   PHASE COLORS
+   ============================================================ */
+.phase-stance { border-left: 4px solid #8899aa; }
+.phase-backlift { border-left: 4px solid #ffa726; }
+.phase-stride { border-left: 4px solid #ffee58; }
+.phase-downswing { border-left: 4px solid #ff8a65; }
+.phase-impact { border-left: 4px solid #ff5252; }
+.phase-follow_through { border-left: 4px solid #66bb6a; }
+.phase-recovery { border-left: 4px solid #8899aa; }
+
+/* ============================================================
+   RESPONSIVE: MOBILE FIRST
+   ============================================================ */
+
+/* Extra small devices (phones, < 576px) */
+@media (max-width: 575.98px) {
+    .hero h1 { font-size: 1.3rem; }
+    .hero p { font-size: 0.85rem; }
+    .navbar-brand { font-size: 1rem; }
+    .table { font-size: 0.8rem; }
+    video { max-height: 250px; }
+    .card-body { padding: 0.75rem; }
+    .container-fluid { padding-left: 10px; padding-right: 10px; }
+}
+
+/* Small devices (landscape phones, 576px+) */
+@media (min-width: 576px) and (max-width: 767.98px) {
+    .hero h1 { font-size: 1.5rem; }
+    video { max-height: 320px; }
+}
+
+/* Medium devices (tablets, 768px+) */
+@media (min-width: 768px) {
+    .hero h1 { font-size: 1.8rem; }
+    video { max-height: 450px; }
+}
+
+/* ============================================================
+   UTILITY
+   ============================================================ */
+.text-gold { color: var(--crease-gold); }
+.text-blue { color: var(--crease-blue); }
+.text-green { color: var(--crease-green); }
+.text-red { color: var(--crease-red); }
+.text-crease { color: var(--crease-text); }
+
+.border-crease { border-color: var(--crease-border) !important; }
+
+/* Disable tap highlight on mobile */
+* { -webkit-tap-highlight-color: transparent; }
+
+/* Smooth transitions */
+.btn, .badge, .card {
+    transition: all 0.2s ease;
+}
+
+/* Fix for dark inputs on mobile */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #e0e0e0;
+    -webkit-box-shadow: 0 0 0 30px #1a1a2e inset;
+}
+
+/* PWA install banner */
+#pwa-install-banner {
+    z-index: 1050;
+}
+
+/* ============================================================
+   ANIMATION
+   ============================================================ */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+.pulse {
+    animation: pulse 1.5s ease-in-out infinite;
+}

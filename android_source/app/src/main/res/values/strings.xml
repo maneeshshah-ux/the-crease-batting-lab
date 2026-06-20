@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">the CREASE</string>
+    <string name="server_url">http://127.0.0.1:5005</string>
+</resources>

@@ -1,0 +1,176 @@
+{% extends "base.html" %}
+
+{% block title %}Compare — the CREASE Batting Lab{% endblock %}
+
+{% block content %}
+<h4 class="mb-3" style="color: #ffd700;"><i class="bi bi-bar-chart-line"></i> Compare Sessions</h4>
+
+{% if selected and selected|length >= 2 %}
+<div class="card border-0 mb-3" style="background: #1e1e3a;">
+    <div class="card-body p-0">
+        <div class="table-responsive">
+            <table class="table table-dark table-bordered mb-0" style="background: transparent;">
+                <thead>
+                    <tr style="color: #ffd700;">
+                        <th>Metric</th>
+                        {% for s in selected %}
+                        <th>{{ s.video_name[:15] }}...</th>
+                        {% endfor %}
+                        <th>Change</th>
+                    </tr>
+                </thead>
+                <tbody id="comparisonBody">
+                    <tr>
+                        <td colspan="{{ selected|length + 2 }}" class="text-center py-3">
+                            <div class="spinner-border" style="color: #ffd700;" role="status"></div>
+                            <br><small style="color: #99aabb;">Calculating...</small>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<div class="card border-0" style="background: #1e1e3a;">
+    <div class="card-body">
+        <canvas id="comparisonChart" height="280"></canvas>
+    </div>
+</div>
+{% else %}
+<div class="card border-0 mb-3" style="background: #1e1e3a;">
+    <div class="card-body text-center py-4" style="color: #667788;">
+        <i class="bi bi-bar-chart-line" style="font-size: 3rem;"></i>
+        <h5 class="mt-2" style="color: #99aabb;">Select Sessions to Compare</h5>
+        <p>Choose 2+ sessions below.</p>
+    </div>
+</div>
+
+<div class="card border-0" style="background: #1e1e3a;">
+    <div class="card-body p-0">
+        {% if sessions %}
+        <div class="table-responsive">
+            <table class="table table-dark table-hover mb-0" style="background: transparent;">
+                <thead>
+                    <tr style="color: #667788;">
+                        <th></th>
+                        <th>Video</th>
+                        <th>Date</th>
+                        <th>Shots</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in sessions %}
+                    <tr>
+                        <td><input type="checkbox" class="session-select" value="{{ s.id }}"
+                                {% for sel in selected %}{% if sel.id == s.id %}checked{% endif %}{% endfor %}></td>
+                        <td><small>{{ s.video_name[:25] }}</small></td>
+                        <td><small>{{ s.date[:10] if s.date else '-' }}</small></td>
+                        <td><span class="badge" style="background: #0f3460;">{{ s.shots }}</span></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="p-3">
+            <button class="btn fw-bold" style="background: #ffd700; color: #1a1a2e;" onclick="compareFromSelection()">
+                <i class="bi bi-bar-chart-line"></i> Compare Selected
+            </button>
+        </div>
+        {% else %}
+        <div class="text-center py-4" style="color: #667788;">
+            <p>No sessions available.</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+{% if selected and selected|length >= 2 %}
+<script>
+var sessionIds = {{ selected|map(attribute='id')|list|tojson }};
+
+function loadComparison() {
+    fetch('/api/compare', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_ids: sessionIds})
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        var tbody = document.getElementById('comparisonBody');
+        if (data.error) { tbody.innerHTML = '<tr><td colspan="99" class="text-danger">' + data.error + '</td></tr>'; return; }
+
+        tbody.innerHTML = '';
+        var metrics = data.metrics_comparison || {};
+        var labels = {
+            avg_front_knee_angle: 'Front Knee (°)', avg_back_knee_angle: 'Back Knee (°)',
+            avg_front_elbow_angle: 'Front Elbow (°)', avg_spine_angle: 'Spine Lean (°)',
+            avg_head_movement: 'Head Move (px)', head_stability_score: 'Head Stability',
+        };
+        var chartLabels = sessionIds.map(function(_, i) { return 'Session ' + (i + 1); });
+        var datasets = [];
+        var colors = ['#ffd700', '#4fc3f7', '#66bb6a', '#ff6b6b', '#ab47bc', '#ffa726'];
+        var idx = 0;
+
+        Object.keys(metrics).forEach(function(key) {
+            var m = metrics[key];
+            var vals = m.values || [];
+            var change = vals.length >= 2 ? (vals[vals.length - 1] - vals[0]).toFixed(1) : '-';
+            var tr = document.createElement('tr');
+            tr.innerHTML = '<td style="color: #99aabb;">' + (labels[key] || key) + '</td>' +
+                vals.map(function(v) { return '<td class="text-center" style="color: #ffd700;">' + (typeof v === 'number' ? v.toFixed(1) : '-') + '</td>'; }).join('') +
+                '<td class="text-center fw-bold" style="color: ' + (parseFloat(change) > 0 ? '#66bb6a' : parseFloat(change) < 0 ? '#ff6b6b' : '#99aabb') + '">' +
+                (change !== '-' ? (change > 0 ? '+' : '') + change : '-') + '</td>';
+            tbody.appendChild(tr);
+
+            datasets.push({
+                label: labels[key] || key,
+                data: vals,
+                borderColor: colors[idx % colors.length],
+                backgroundColor: colors[idx % colors.length] + '44',
+                fill: true,
+                tension: 0.3,
+            });
+            idx++;
+        });
+
+        var ctx = document.getElementById('comparisonChart');
+        if (ctx && typeof Chart !== 'undefined') {
+            new Chart(ctx, {
+                type: 'line',
+                data: { labels: chartLabels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    plugins: {
+                        legend: { position: 'top', labels: { color: '#99aabb' } },
+                        title: { display: true, text: 'Progress Tracking', color: '#ffd700' },
+                    },
+                    scales: {
+                        x: { ticks: { color: '#99aabb' } },
+                        y: { beginAtZero: true, ticks: { color: '#99aabb' } },
+                    },
+                },
+            });
+        }
+    })
+    .catch(function(err) {
+        document.getElementById('comparisonBody').innerHTML = '<tr><td colspan="99" class="text-danger">Error: ' + err + '</td></tr>';
+    });
+}
+loadComparison();
+</script>
+{% else %}
+<script>
+function compareFromSelection() {
+    var checked = document.querySelectorAll('.session-select:checked');
+    if (checked.length >= 2) {
+        var ids = Array.from(checked).map(function(cb) { return cb.value; });
+        window.location.href = '/compare?' + ids.map(function(id) { return 'ids=' + id; }).join('&');
+    } else { alert('Select at least 2 sessions.'); }
+}
+</script>
+{% endif %}
+{% endblock %}
