@@ -9,9 +9,7 @@
   <!-- "CREASE" text -->
   <text x="256" y="290" text-anchor="middle" font-family="Georgia, serif" font-weight="800"
         font-size="80" fill="#E55000" letter-spacing="4">CREASE</text>
-  <!-- "by CRICKET-CONNECT" -->
-  <text x="256" y="340" text-anchor="middle" font-family="Arial, sans-serif" font-weight="300"
-        font-size="22" fill="#C0C0C0" letter-spacing="3">by CRICKET-CONNECT</text>
+  <!-- Brand removed -->
   <!-- Bottom accent bar -->
   <rect x="80" y="380" width="352" height="4" rx="2" fill="#E55000"/>
 </svg>

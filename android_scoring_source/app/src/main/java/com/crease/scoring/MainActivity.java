@@ -263,7 +263,6 @@ public class MainActivity extends Activity {
                     .setTitle("the CREASE Scoring")
                     .setMessage("v1.0.0\n\n" +
                                "Indoor cricket match scoring app.\n\n" +
-                               "the CREASE by CRICKET-CONNECT\n" +
                                "Where every cricketer gets better.\n" +
                                "© 2026 the CREASE")
                     .setPositiveButton("OK", null)

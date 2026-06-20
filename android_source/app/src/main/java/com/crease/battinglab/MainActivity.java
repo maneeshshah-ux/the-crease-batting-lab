@@ -39,7 +39,7 @@ public class MainActivity extends Activity {
     private TextView loadingText;
     private ProgressBar loadingProgress;
     private LinearLayout errorView;
-    private String serverUrl = "http://127.0.0.1:5005";
+    private String serverUrl = "https://the-crease-batting-lab.onrender.com";
     private boolean isFirstLoad = true;
     private static final String PREFS_NAME = "crease_prefs";
     private static final String KEY_SERVER_URL = "server_url";
@@ -306,7 +306,6 @@ public class MainActivity extends Activity {
                     .setTitle("the CREASE Batting Lab")
                     .setMessage("v1.1.0\n\n" +
                                "Where every cricketer gets better.\n\n" +
-                               "the CREASE by CRICKET-CONNECT\n" +
                                "Built with MediaPipe + OpenCV.\n" +
                                "© 2026 the CREASE")
                     .setPositiveButton("OK", null)

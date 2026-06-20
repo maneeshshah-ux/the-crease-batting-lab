@@ -72,26 +72,23 @@ aapt package -f \
     -F "$BUILD_DIR/apk/unsigned.apk" \
     -v
 
-# Add DEX files to APK
-cd "$BUILD_DIR"
+# IMPORTANT: Add DEX file using RELATIVE path from a temp directory.
+# aapt add with absolute paths stores the ENTIRE path inside the APK,
+# causing Android to fail with "package appears to be invalid".
+TMP_STAGING="$BUILD_DIR/staging"
+mkdir -p "$TMP_STAGING"
+cp "$BUILD_DIR/dex/classes.dex" "$TMP_STAGING/classes.dex"
+cd "$TMP_STAGING"
 aapt add "$BUILD_DIR/apk/unsigned.apk" \
-    "$BUILD_DIR/dex/classes.dex"
+    "classes.dex"
 
-# Add AndroidManifest
-aapt add "$BUILD_DIR/apk/unsigned.apk" \
-    "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+cd "$PROJECT_DIR"
 
 echo "[5/6] Signing APK..."
-# Generate debug keystore
-KEYSTORE="$BUILD_DIR/debug.keystore"
+# Use shared keystore for consistency across all CREASE APKs
+KEYSTORE="$(cd "$PROJECT_DIR/.." && pwd)/shared_debug.keystore"
 KEYPASS="android"
-if [ ! -f "$KEYSTORE" ]; then
-    keytool -genkey -v -keystore "$KEYSTORE" \
-        -alias crease_scoring_debug \
-        -keyalg RSA -keysize 2048 -validity 10000 \
-        -storepass "$KEYPASS" -keypass "$KEYPASS" \
-        -dname "CN=the CREASE Scoring, OU=Dev, O=CREASE, L=Cricket, ST=CA, C=US" 2>/dev/null
-fi
+KEY_ALIAS="crease_shared"
 
 # Zipalign
 zipalign -v -p 4 "$BUILD_DIR/apk/unsigned.apk" "$BUILD_DIR/apk/aligned.apk"
@@ -100,7 +97,7 @@ zipalign -v -p 4 "$BUILD_DIR/apk/unsigned.apk" "$BUILD_DIR/apk/aligned.apk"
 apksigner sign \
     --ks "$KEYSTORE" \
     --ks-pass "pass:$KEYPASS" \
-    --ks-key-alias crease_scoring_debug \
+    --ks-key-alias "$KEY_ALIAS" \
     --out "$PROJECT_DIR/${APP_NAME}_${APP_VERSION}.apk" \
     "$BUILD_DIR/apk/aligned.apk"
 

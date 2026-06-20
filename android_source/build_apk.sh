@@ -3,6 +3,9 @@
 # the CREASE Batting Lab — APK Builder
 # Builds an Android APK from source using Android SDK tools.
 #
+# IMPORTANT: This script uses RELATIVE paths for aapt add commands.
+# Absolute paths cause Android to reject the APK with "package appears to be invalid".
+#
 
 set -e
 
@@ -72,26 +75,27 @@ aapt package -f \
     -F "$BUILD_DIR/apk/unsigned.apk" \
     -v
 
-# Add DEX files to APK
-cd "$BUILD_DIR"
+# IMPORTANT: Add DEX file using RELATIVE path from a temp directory.
+# aapt add with absolute paths stores the ENTIRE path inside the APK,
+# causing Android to fail with "package appears to be invalid".
+TMP_STAGING="$BUILD_DIR/staging"
+mkdir -p "$TMP_STAGING"
+cp "$BUILD_DIR/dex/classes.dex" "$TMP_STAGING/classes.dex"
+cd "$TMP_STAGING"
 aapt add "$BUILD_DIR/apk/unsigned.apk" \
-    "$BUILD_DIR/dex/classes.dex"
+    "classes.dex"
 
-# Add AndroidManifest
-aapt add "$BUILD_DIR/apk/unsigned.apk" \
-    "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
+# Also add AndroidManifest.xml as binary XML at root
+# (already included by aapt package step above, so this is optional)
+# The aapt package step already put a compiled AndroidManifest.xml in the APK.
+
+cd "$PROJECT_DIR"
 
 echo "[5/6] Signing APK..."
-# Generate debug keystore
-KEYSTORE="$BUILD_DIR/debug.keystore"
+# Use shared keystore for consistency across all CREASE APKs
+KEYSTORE="$(cd "$PROJECT_DIR/.." && pwd)/shared_debug.keystore"
 KEYPASS="android"
-if [ ! -f "$KEYSTORE" ]; then
-    keytool -genkey -v -keystore "$KEYSTORE" \
-        -alias crease_debug \
-        -keyalg RSA -keysize 2048 -validity 10000 \
-        -storepass "$KEYPASS" -keypass "$KEYPASS" \
-        -dname "CN=the CREASE, OU=Dev, O=CREASE, L=Cricket, ST=CA, C=US" 2>/dev/null
-fi
+KEY_ALIAS="crease_shared"
 
 # Zipalign
 zipalign -v -p 4 "$BUILD_DIR/apk/unsigned.apk" "$BUILD_DIR/apk/aligned.apk"
@@ -100,7 +104,7 @@ zipalign -v -p 4 "$BUILD_DIR/apk/unsigned.apk" "$BUILD_DIR/apk/aligned.apk"
 apksigner sign \
     --ks "$KEYSTORE" \
     --ks-pass "pass:$KEYPASS" \
-    --ks-key-alias crease_debug \
+    --ks-key-alias "$KEY_ALIAS" \
     --out "$PROJECT_DIR/${APP_NAME}_${APP_VERSION}.apk" \
     "$BUILD_DIR/apk/aligned.apk"
 
@@ -112,6 +116,6 @@ echo "  File: $PROJECT_DIR/${APP_NAME}_${APP_VERSION}.apk"
 echo "  Size: $(ls -lh "$PROJECT_DIR/${APP_NAME}_${APP_VERSION}.apk" | awk '{print $5}')"
 echo ""
 echo "  Install on phone:"
-echo "    adb install ${APP_NAME}_v1.0.0.apk"
+echo "    adb install ${APP_NAME}_${APP_VERSION}.apk"
 echo "  Or simply transfer the APK to your phone and tap to install."
 echo "========================================"
