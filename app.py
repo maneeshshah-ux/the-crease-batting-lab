@@ -334,7 +334,33 @@ def _compute_stats(sessions):
 
 
 # ---------------------------------------------------------------------------
-# PWA / Manifest
+# Scoring App (PWA) — served at /scoring/
+# ---------------------------------------------------------------------------
+
+@app.route("/scoring/")
+@app.route("/scoring/<path:filename>")
+def scoring_app(filename=None):
+    """Serve the Scoring App PWA under /scoring/ path."""
+    scoring_dir = BASE_DIR / "static" / "scoring"
+    if filename is None:
+        filename = "index.html"
+    file_path = scoring_dir / filename
+    if not file_path.exists() or not file_path.is_file():
+        filename = "index.html"
+        file_path = scoring_dir / "index.html"
+    # Determine mimetype for service worker and manifest
+    mimetype = None
+    if filename == "sw.js":
+        mimetype = "application/javascript"
+    elif filename == "manifest.json":
+        mimetype = "application/manifest+json"
+    return send_from_directory(str(scoring_dir),
+                               filename,
+                               mimetype=mimetype)
+
+
+# ---------------------------------------------------------------------------
+# PWA / Manifest (for the main Batting Lab app)
 # ---------------------------------------------------------------------------
 
 @app.route("/manifest.json")

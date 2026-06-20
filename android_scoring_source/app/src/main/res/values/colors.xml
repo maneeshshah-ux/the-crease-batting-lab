@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="crease_bg">#0A0A0A</color>
+    <color name="crease_orange">#E55000</color>
+    <color name="crease_silver">#C0C0C0</color>
+    <color name="off_white">#F7F7F5</color>
+</resources>
