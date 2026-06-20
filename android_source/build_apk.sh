@@ -13,6 +13,7 @@ BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
 PLATFORM="$ANDROID_HOME/platforms/android-34"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="the_CREASE"
+APP_VERSION="v1.1.0"
 PACKAGE="com.crease.battinglab"
 
 export PATH="$JAVA_HOME/bin:$BUILD_TOOLS:$PATH"
@@ -30,7 +31,7 @@ echo ""
 # Clean build dir
 BUILD_DIR="$PROJECT_DIR/build"
 rm -rf "$BUILD_DIR"
-mkdir -p "$BUILD_DIR/classes" "$BUILD_DIR/dex" "$BUILD_DIR/apk"
+mkdir -p "$BUILD_DIR/classes" "$BUILD_DIR/dex" "$BUILD_DIR/apk" "$BUILD_DIR/source"
 
 echo "[1/6] Compiling resources with aapt..."
 aapt package -f \
@@ -42,36 +43,43 @@ aapt package -f \
     -J "$BUILD_DIR/source"
 
 echo "[2/6] Compiling Java source..."
+# Compile generated R.java first, then MainActivity
 javac -source 17 -target 17 \
     -classpath "$PLATFORM/android.jar" \
+    -d "$BUILD_DIR/classes" \
+    "$BUILD_DIR/source/com/crease/battinglab/R.java"
+
+javac -source 17 -target 17 \
+    -classpath "$PLATFORM/android.jar:$BUILD_DIR/classes" \
     -d "$BUILD_DIR/classes" \
     "$PROJECT_DIR/app/src/main/java/com/crease/battinglab/MainActivity.java"
 
 echo "[3/6] Converting to DEX..."
+# Collect all .class files using a temp file to handle spaces in paths
+find "$BUILD_DIR/classes" -name "*.class" > "$BUILD_DIR/classes_list.txt"
 d8 \
     --lib "$PLATFORM/android.jar" \
     --output "$BUILD_DIR/dex" \
-    "$BUILD_DIR/classes/com/crease/battinglab/MainActivity.class"
+    @"$BUILD_DIR/classes_list.txt"
 
 echo "[4/6] Packaging APK..."
-# First, unpack resources
-cd "$BUILD_DIR/apk"
-unzip -qo resources.apk -d apk_content/
-
-# Create unsigned APK
+# Create unsigned APK using aapt directly
 aapt package -f \
     -M "$PROJECT_DIR/app/src/main/AndroidManifest.xml" \
     -S "$PROJECT_DIR/app/src/main/res" \
+    -A "$PROJECT_DIR/app/src/main/assets" \
     -I "$PLATFORM/android.jar" \
     -F "$BUILD_DIR/apk/unsigned.apk" \
-    --include-assets
+    -v
 
 # Add DEX files to APK
-cd "$BUILD_DIR/dex"
-aapt add "$BUILD_DIR/apk/unsigned.apk" classes.dex
-
-# Add native libs if any
 cd "$BUILD_DIR"
+aapt add "$BUILD_DIR/apk/unsigned.apk" \
+    "$BUILD_DIR/dex/classes.dex"
+
+# Add AndroidManifest
+aapt add "$BUILD_DIR/apk/unsigned.apk" \
+    "$PROJECT_DIR/app/src/main/AndroidManifest.xml"
 
 echo "[5/6] Signing APK..."
 # Generate debug keystore
@@ -93,15 +101,15 @@ apksigner sign \
     --ks "$KEYSTORE" \
     --ks-pass "pass:$KEYPASS" \
     --ks-key-alias crease_debug \
-    --out "$PROJECT_DIR/${APP_NAME}_v1.0.0.apk" \
+    --out "$PROJECT_DIR/${APP_NAME}_${APP_VERSION}.apk" \
     "$BUILD_DIR/apk/aligned.apk"
 
 echo ""
 echo "========================================"
 echo "  ✅ APK Built Successfully!"
 echo "========================================"
-echo "  File: $PROJECT_DIR/${APP_NAME}_v1.0.0.apk"
-echo "  Size: $(ls -lh "$PROJECT_DIR/${APP_NAME}_v1.0.0.apk" | awk '{print $5}')"
+echo "  File: $PROJECT_DIR/${APP_NAME}_${APP_VERSION}.apk"
+echo "  Size: $(ls -lh "$PROJECT_DIR/${APP_NAME}_${APP_VERSION}.apk" | awk '{print $5}')"
 echo ""
 echo "  Install on phone:"
 echo "    adb install ${APP_NAME}_v1.0.0.apk"

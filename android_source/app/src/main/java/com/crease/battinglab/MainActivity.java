@@ -192,19 +192,19 @@ public class MainActivity extends Activity {
             errorView.setOrientation(LinearLayout.VERTICAL);
             errorView.setGravity(android.view.Gravity.CENTER);
             errorView.setPadding(40, 40, 40, 40);
-            errorView.setBackgroundColor(0xff1a1a2e);
+            errorView.setBackgroundColor(0xff0A0A0A);
 
             TextView errorText = new TextView(this);
             errorText.setText(message);
-            errorText.setTextColor(0xff99aabb);
+            errorText.setTextColor(0xffC0C0C0);
             errorText.setTextSize(14);
             errorText.setGravity(android.view.Gravity.CENTER);
             errorView.addView(errorText);
 
             Button retryBtn = new Button(this);
             retryBtn.setText("Retry Connection");
-            retryBtn.setTextColor(0xff1a1a2e);
-            retryBtn.setBackgroundColor(0xffffd700);
+            retryBtn.setTextColor(0xffF7F7F5);
+            retryBtn.setBackgroundColor(0xffE55000);
             LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -220,8 +220,8 @@ public class MainActivity extends Activity {
 
             Button settingsBtn = new Button(this);
             settingsBtn.setText("Change Server URL");
-            settingsBtn.setTextColor(0xffffff);
-            settingsBtn.setBackgroundColor(0xff0f3460);
+            settingsBtn.setTextColor(0xffC0C0C0);
+            settingsBtn.setBackgroundColor(0xff1A1A1A);
             LinearLayout.LayoutParams sBtnParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -244,9 +244,9 @@ public class MainActivity extends Activity {
         final EditText input = new EditText(this);
         input.setText(serverUrl);
         input.setSelectAllOnFocus(true);
-        input.setTextColor(0xffe0e0e0);
+        input.setTextColor(0xffC0C0C0);
         input.setHint("e.g. http://192.168.1.5:5005");
-        input.setHintTextColor(0xff667788);
+        input.setHintTextColor(0xff888888);
 
         new android.app.AlertDialog.Builder(this)
             .setTitle("Server URL")
@@ -304,8 +304,9 @@ public class MainActivity extends Activity {
             case 3:
                 new android.app.AlertDialog.Builder(this)
                     .setTitle("the CREASE Batting Lab")
-                    .setMessage("v1.0.0\n\n" +
-                               "Zero-cost AI-powered cricket batting analysis.\n\n" +
+                    .setMessage("v1.1.0\n\n" +
+                               "Where every cricketer gets better.\n\n" +
+                               "the CREASE by CRICKET-CONNECT\n" +
                                "Built with MediaPipe + OpenCV.\n" +
                                "© 2026 the CREASE")
                     .setPositiveButton("OK", null)
