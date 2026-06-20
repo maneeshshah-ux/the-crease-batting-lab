@@ -11,12 +11,10 @@
 services:
   - type: web
     name: the-crease-batting-lab
-    runtime: image
+    env: docker
     repo: https://github.com/maneeshshah-ux/the-crease-batting-lab
     branch: main
     plan: free
-
-    # Use the Dockerfile in the repo root
     dockerfilePath: ./Dockerfile
 
     # Render injects the PORT env var automatically; gunicorn reads it
@@ -24,7 +22,7 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: SECRET_KEY
-        generateValue: true    # random secret on first deploy
+        generateValue: true
 
     # Health check path
     healthCheckPath: /
