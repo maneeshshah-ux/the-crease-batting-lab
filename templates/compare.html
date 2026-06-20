@@ -3,15 +3,15 @@
 {% block title %}Compare — the CREASE Batting Lab{% endblock %}
 
 {% block content %}
-<h4 class="mb-3" style="color: #ffd700;"><i class="bi bi-bar-chart-line"></i> Compare Sessions</h4>
+<h4 class="mb-3" style="color: #E55000;"><i class="bi bi-bar-chart-line"></i> Compare Sessions</h4>
 
 {% if selected and selected|length >= 2 %}
-<div class="card border-0 mb-3" style="background: #1e1e3a;">
+<div class="card border-0 mb-3" style="background: #141414; border: 1px solid #2A2A2A !important;">
     <div class="card-body p-0">
         <div class="table-responsive">
             <table class="table table-dark table-bordered mb-0" style="background: transparent;">
                 <thead>
-                    <tr style="color: #ffd700;">
+                    <tr style="color: #E55000;">
                         <th>Metric</th>
                         {% for s in selected %}
                         <th>{{ s.video_name[:15] }}...</th>
@@ -22,8 +22,8 @@
                 <tbody id="comparisonBody">
                     <tr>
                         <td colspan="{{ selected|length + 2 }}" class="text-center py-3">
-                            <div class="spinner-border" style="color: #ffd700;" role="status"></div>
-                            <br><small style="color: #99aabb;">Calculating...</small>
+                            <div class="spinner-border" style="color: #E55000;" role="status"></div>
+                            <br><small style="color: #999999;">Calculating...</small>
                         </td>
                     </tr>
                 </tbody>
@@ -32,27 +32,27 @@
     </div>
 </div>
 
-<div class="card border-0" style="background: #1e1e3a;">
+<div class="card border-0" style="background: #141414; border: 1px solid #2A2A2A !important;">
     <div class="card-body">
         <canvas id="comparisonChart" height="280"></canvas>
     </div>
 </div>
 {% else %}
-<div class="card border-0 mb-3" style="background: #1e1e3a;">
-    <div class="card-body text-center py-4" style="color: #667788;">
-        <i class="bi bi-bar-chart-line" style="font-size: 3rem;"></i>
-        <h5 class="mt-2" style="color: #99aabb;">Select Sessions to Compare</h5>
+<div class="card border-0 mb-3" style="background: #141414; border: 1px solid #2A2A2A !important;">
+    <div class="card-body text-center py-4" style="color: #888888;">
+        <i class="bi bi-bar-chart-line" style="font-size: 3rem; color: #555;"></i>
+        <h5 class="mt-2" style="color: #AAAAAA;">Select Sessions to Compare</h5>
         <p>Choose 2+ sessions below.</p>
     </div>
 </div>
 
-<div class="card border-0" style="background: #1e1e3a;">
+<div class="card border-0" style="background: #141414; border: 1px solid #2A2A2A !important;">
     <div class="card-body p-0">
         {% if sessions %}
         <div class="table-responsive">
             <table class="table table-dark table-hover mb-0" style="background: transparent;">
                 <thead>
-                    <tr style="color: #667788;">
+                    <tr style="color: #888888;">
                         <th></th>
                         <th>Video</th>
                         <th>Date</th>
@@ -66,19 +66,19 @@
                                 {% for sel in selected %}{% if sel.id == s.id %}checked{% endif %}{% endfor %}></td>
                         <td><small>{{ s.video_name[:25] }}</small></td>
                         <td><small>{{ s.date[:10] if s.date else '-' }}</small></td>
-                        <td><span class="badge" style="background: #0f3460;">{{ s.shots }}</span></td>
+                        <td><span class="badge badge-crease-dim">{{ s.shots }}</span></td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
         <div class="p-3">
-            <button class="btn fw-bold" style="background: #ffd700; color: #1a1a2e;" onclick="compareFromSelection()">
+            <button class="btn btn-crease" onclick="compareFromSelection()">
                 <i class="bi bi-bar-chart-line"></i> Compare Selected
             </button>
         </div>
         {% else %}
-        <div class="text-center py-4" style="color: #667788;">
+        <div class="text-center py-4" style="color: #888888;">
             <p>No sessions available.</p>
         </div>
         {% endif %}
@@ -112,7 +112,7 @@ function loadComparison() {
         };
         var chartLabels = sessionIds.map(function(_, i) { return 'Session ' + (i + 1); });
         var datasets = [];
-        var colors = ['#ffd700', '#4fc3f7', '#66bb6a', '#ff6b6b', '#ab47bc', '#ffa726'];
+        var colors = ['#E55000', '#FF8A50', '#C0C0C0', '#888888', '#4CAF50', '#E53935'];
         var idx = 0;
 
         Object.keys(metrics).forEach(function(key) {
@@ -120,9 +120,9 @@ function loadComparison() {
             var vals = m.values || [];
             var change = vals.length >= 2 ? (vals[vals.length - 1] - vals[0]).toFixed(1) : '-';
             var tr = document.createElement('tr');
-            tr.innerHTML = '<td style="color: #99aabb;">' + (labels[key] || key) + '</td>' +
-                vals.map(function(v) { return '<td class="text-center" style="color: #ffd700;">' + (typeof v === 'number' ? v.toFixed(1) : '-') + '</td>'; }).join('') +
-                '<td class="text-center fw-bold" style="color: ' + (parseFloat(change) > 0 ? '#66bb6a' : parseFloat(change) < 0 ? '#ff6b6b' : '#99aabb') + '">' +
+            tr.innerHTML = '<td style="color: #999999;">' + (labels[key] || key) + '</td>' +
+                vals.map(function(v) { return '<td class="text-center" style="color: #E55000;">' + (typeof v === 'number' ? v.toFixed(1) : '-') + '</td>'; }).join('') +
+                '<td class="text-center fw-bold" style="color: ' + (parseFloat(change) > 0 ? '#4CAF50' : parseFloat(change) < 0 ? '#E53935' : '#999999') + '">' +
                 (change !== '-' ? (change > 0 ? '+' : '') + change : '-') + '</td>';
             tbody.appendChild(tr);
 
@@ -145,12 +145,12 @@ function loadComparison() {
                 options: {
                     responsive: true,
                     plugins: {
-                        legend: { position: 'top', labels: { color: '#99aabb' } },
-                        title: { display: true, text: 'Progress Tracking', color: '#ffd700' },
+                        legend: { position: 'top', labels: { color: '#999999' } },
+                        title: { display: true, text: 'Progress Tracking', color: '#E55000' },
                     },
                     scales: {
-                        x: { ticks: { color: '#99aabb' } },
-                        y: { beginAtZero: true, ticks: { color: '#99aabb' } },
+                        x: { ticks: { color: '#999999' } },
+                        y: { beginAtZero: true, ticks: { color: '#999999' } },
                     },
                 },
             });

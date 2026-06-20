@@ -1,23 +1,39 @@
 /*
- * the CREASE Batting Lab — Styles
- * Dark theme, mobile-first, cricket-focused design.
+ * the CREASE Batting Lab — Brand Styles
+ * Brand colours: CREASE Orange #E55000 · Pitch Black #0A0A0A
+ *                Crease Silver #C0C0C0 · Off White #F7F7F5
+ * Usage: 60% Black · 25% Off White · 10% Orange · 5% Silver
+ * Brand: the CREASE by CRICKET-CONNECT
+ * Tagline: Where every cricketer gets better.
  */
+
+/* ============================================================
+   BRAND VARIABLES
+   ============================================================ */
+:root {
+    --crease-orange:    #E55000;
+    --crease-orange-hover: #CC4700;
+    --pitch-black:      #0A0A0A;
+    --pitch-black-card: #141414;
+    --pitch-black-raised: #1A1A1A;
+    --crease-silver:    #C0C0C0;
+    --crease-silver-dim: #888888;
+    --off-white:        #F7F7F5;
+    --off-white-dim:    #D0D0CC;
+    --border-dim:       #2A2A2A;
+    --crease-bg:        var(--pitch-black);
+    --crease-bg-card:   var(--pitch-black-card);
+    --crease-text:      var(--crease-silver);
+    --crease-text-light: var(--off-white-dim);
+    --crease-gold:      var(--crease-orange);
+    --crease-blue:      var(--crease-orange);
+    --crease-green:     #4CAF50;
+    --crease-red:       #E53935;
+}
 
 /* ============================================================
    BASE
    ============================================================ */
-:root {
-    --crease-bg: #1a1a2e;
-    --crease-bg-card: #1e1e3a;
-    --crease-gold: #ffd700;
-    --crease-blue: #4fc3f7;
-    --crease-green: #66bb6a;
-    --crease-red: #ff6b6b;
-    --crease-text: #99aabb;
-    --crease-text-light: #c0d0e0;
-    --crease-border: #2a2a4a;
-}
-
 body {
     background: var(--crease-bg);
     color: var(--crease-text);
@@ -34,37 +50,39 @@ main { flex: 1; }
    TYPOGRAPHY
    ============================================================ */
 h1, h2, h3, h4, h5, h6 {
-    color: var(--crease-gold);
+    color: var(--crease-orange);
+    font-weight: 700;
 }
 
 a {
-    color: var(--crease-blue);
+    color: var(--crease-orange);
 }
 
 a:hover {
-    color: var(--crease-gold);
+    color: var(--off-white);
 }
 
 /* ============================================================
    SCROLLBAR
    ============================================================ */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: #1a1a2e; }
-::-webkit-scrollbar-thumb { background: #3a3a5a; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #5a5a7a; }
+::-webkit-scrollbar-track { background: var(--pitch-black); }
+::-webkit-scrollbar-thumb { background: #333; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--crease-silver-dim); }
 
 /* ============================================================
    CARDS
    ============================================================ */
 .card {
-    border: none;
+    border: 1px solid var(--border-dim);
     background: var(--crease-bg-card);
 }
 
 .card-header {
     background: transparent;
-    border-bottom: 1px solid var(--crease-border);
+    border-bottom: 1px solid var(--border-dim);
     font-weight: 500;
+    color: var(--off-white-dim);
 }
 
 .card-body {
@@ -81,83 +99,94 @@ a:hover {
 
 .table > :not(caption) > * > * {
     background: transparent;
-    border-bottom: 1px solid var(--crease-border);
+    border-bottom: 1px solid var(--border-dim);
     vertical-align: middle;
 }
 
 .table-hover > tbody > tr:hover > * {
-    background: rgba(255, 215, 0, 0.05);
+    background: rgba(229, 80, 0, 0.06);
 }
 
 .table-dark {
     --bs-table-color: var(--crease-text);
     --bs-table-bg: transparent;
-    --bs-table-border-color: var(--crease-border);
+    --bs-table-border-color: var(--border-dim);
     --bs-table-striped-bg: rgba(255,255,255,0.02);
-    --bs-table-hover-color: #fff;
+    --bs-table-hover-color: var(--off-white);
 }
 
 /* ============================================================
    FORMS
    ============================================================ */
 .form-control, .form-select {
-    background: #1a1a2e;
-    border: 1px solid #3a3a5a;
-    color: #e0e0e0;
+    background: var(--pitch-black);
+    border: 1px solid #333;
+    color: var(--off-white-dim);
 }
 
 .form-control:focus, .form-select:focus {
-    background: #1a1a2e;
-    border-color: var(--crease-gold);
-    box-shadow: 0 0 0 0.2rem rgba(255, 215, 0, 0.15);
-    color: #e0e0e0;
+    background: var(--pitch-black);
+    border-color: var(--crease-orange);
+    box-shadow: 0 0 0 0.2rem rgba(229, 80, 0, 0.15);
+    color: var(--off-white);
 }
 
 .form-check-input {
-    background: #2a2a4a;
-    border-color: #4a4a6a;
+    background: #2A2A2A;
+    border-color: #444;
 }
 
 .form-check-input:checked {
-    background: var(--crease-gold);
-    border-color: var(--crease-gold);
+    background: var(--crease-orange);
+    border-color: var(--crease-orange);
 }
 
 .form-text {
-    color: #667788;
+    color: var(--crease-silver-dim);
 }
 
 /* ============================================================
    BUTTONS
    ============================================================ */
-.btn-gold {
-    background: var(--crease-gold);
-    color: var(--crease-bg);
+.btn-crease {
+    background: var(--crease-orange);
+    color: var(--off-white);
     font-weight: 600;
+    border: none;
 }
 
-.btn-gold:hover {
-    background: #e6c200;
-    color: var(--crease-bg);
+.btn-crease:hover {
+    background: var(--crease-orange-hover);
+    color: var(--off-white);
+}
+
+.btn-crease:disabled {
+    background: #663A20;
+    color: #888;
 }
 
 .btn-outline-crease {
-    border: 1px solid var(--crease-gold);
-    color: var(--crease-gold);
+    border: 1px solid var(--crease-orange);
+    color: var(--crease-orange);
     background: transparent;
 }
 
 .btn-outline-crease:hover {
-    background: var(--crease-gold);
-    color: var(--crease-bg);
+    background: var(--crease-orange);
+    color: var(--off-white);
 }
 
 /* ============================================================
    BADGES
    ============================================================ */
-.badge {
-    font-weight: 500;
-    padding: 0.35em 0.65em;
+.badge-crease {
+    background: var(--crease-orange);
+    color: var(--off-white);
+}
+
+.badge-crease-dim {
+    background: rgba(229, 80, 0, 0.15);
+    color: var(--crease-orange);
 }
 
 /* ============================================================
@@ -172,52 +201,74 @@ a:hover {
    PROGRESS
    ============================================================ */
 .progress {
-    background: var(--crease-border);
+    background: var(--border-dim);
+}
+
+.progress-bar {
+    background: var(--crease-orange);
 }
 
 /* ============================================================
-   HERO
+   HERO SECTION
    ============================================================ */
 .hero {
-    border: 1px solid rgba(255, 215, 0, 0.1);
+    border: 1px solid rgba(229, 80, 0, 0.15);
+    position: relative;
+    overflow: hidden;
+}
+
+.hero::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: var(--crease-orange);
 }
 
 /* ============================================================
    FOOTER
    ============================================================ */
 .footer {
-    border-top: 1px solid var(--crease-border);
+    border-top: 1px solid var(--border-dim);
 }
 
 /* ============================================================
    BREADCRUMB
    ============================================================ */
 .breadcrumb-item + .breadcrumb-item::before {
-    color: #667788;
+    color: var(--crease-silver-dim);
 }
 
 .breadcrumb-item.active {
-    color: var(--crease-gold);
+    color: var(--crease-orange);
 }
 
 /* ============================================================
-   BADGE COLORS
+   UTILITY COLORS
    ============================================================ */
-.bg-crease-gold { background: var(--crease-gold); color: var(--crease-bg); }
-.bg-crease-blue { background: var(--crease-blue); }
-.bg-crease-green { background: var(--crease-green); }
-.bg-crease-red { background: var(--crease-red); }
+.text-crease { color: var(--crease-text); }
+.text-crease-light { color: var(--off-white-dim); }
+.text-crease-orange { color: var(--crease-orange); }
+.text-crease-silver { color: var(--crease-silver); }
+.bg-crease-orange { background: var(--crease-orange); color: var(--off-white); }
+.bg-crease-black { background: var(--pitch-black); }
+.bg-crease-card { background: var(--crease-bg-card); }
+
+.border-crease { border-color: var(--border-dim) !important; }
+.border-orange { border-color: var(--crease-orange) !important; }
 
 /* ============================================================
    PHASE COLORS
    ============================================================ */
-.phase-stance { border-left: 4px solid #8899aa; }
-.phase-backlift { border-left: 4px solid #ffa726; }
-.phase-stride { border-left: 4px solid #ffee58; }
-.phase-downswing { border-left: 4px solid #ff8a65; }
-.phase-impact { border-left: 4px solid #ff5252; }
-.phase-follow_through { border-left: 4px solid #66bb6a; }
-.phase-recovery { border-left: 4px solid #8899aa; }
+.phase-stance { border-left: 4px solid var(--crease-silver-dim); }
+.phase-backlift { border-left: 4px solid var(--crease-orange); }
+.phase-stride { border-left: 4px solid #D4A000; }
+.phase-downswing { border-left: 4px solid #FF6D00; }
+.phase-impact { border-left: 4px solid var(--crease-orange); }
+.phase-follow_through { border-left: 4px solid #4CAF50; }
+.phase-recovery { border-left: 4px solid var(--crease-silver-dim); }
 
 /* ============================================================
    RESPONSIVE: MOBILE FIRST
@@ -249,13 +300,9 @@ a:hover {
 /* ============================================================
    UTILITY
    ============================================================ */
-.text-gold { color: var(--crease-gold); }
-.text-blue { color: var(--crease-blue); }
-.text-green { color: var(--crease-green); }
-.text-red { color: var(--crease-red); }
-.text-crease { color: var(--crease-text); }
+.text-gold { color: var(--crease-orange); }
 
-.border-crease { border-color: var(--crease-border) !important; }
+.border-crease { border-color: var(--border-dim) !important; }
 
 /* Disable tap highlight on mobile */
 * { -webkit-tap-highlight-color: transparent; }
@@ -269,8 +316,8 @@ a:hover {
 input:-webkit-autofill,
 input:-webkit-autofill:hover,
 input:-webkit-autofill:focus {
-    -webkit-text-fill-color: #e0e0e0;
-    -webkit-box-shadow: 0 0 0 30px #1a1a2e inset;
+    -webkit-text-fill-color: var(--off-white-dim);
+    -webkit-box-shadow: 0 0 0 30px var(--pitch-black) inset;
 }
 
 /* PWA install banner */

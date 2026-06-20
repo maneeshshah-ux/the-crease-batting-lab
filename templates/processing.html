@@ -5,26 +5,26 @@
 {% block content %}
 <div class="row justify-content-center">
     <div class="col-lg-6">
-        <div class="card border-0 text-center" style="background: #1e1e3a;">
+        <div class="card border-0 text-center" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-body py-5">
-                <div class="mb-4" style="color: #ffd700;">
+                <div class="mb-4" style="color: #E55000;">
                     <i class="bi bi-arrow-repeat" style="font-size: 4rem; animation: spin 2s linear infinite;"></i>
                 </div>
-                <h4 style="color: #ffd700;">🏏 Analysing Your Session</h4>
-                <p style="color: #99aabb;" id="statusMessage">Processing video frames...</p>
-                <p class="small" style="color: #667788;" id="videoName">{{ video_name }}</p>
+                <h4 style="color: #E55000;">Analysing Your Session</h4>
+                <p style="color: #999999;" id="statusMessage">Processing video frames...</p>
+                <p class="small" style="color: #888888;" id="videoName">{{ video_name }}</p>
 
-                <div class="progress mb-3" style="height: 20px; background: #2a2a4a;">
+                <div class="progress mb-3" style="height: 20px; background: #2A2A2A;">
                     <div id="progressBar" class="progress-bar progress-bar-striped progress-bar-animated"
-                         role="progressbar" style="width: 0%; background: #ffd700; color: #1a1a2e;">
+                         role="progressbar" style="width: 0%; background: #E55000; color: #F7F7F5;">
                         0%
                     </div>
                 </div>
 
-                <div class="alert py-2 small" style="background: #0f3460; color: #99aabb; border: none;">
-                    <i class="bi bi-info-circle"></i>
+                <div class="alert py-2 small" style="background: #1A1A1A; border: 1px solid #333; color: #C0C0C0;">
+                    <i class="bi bi-info-circle" style="color: #E55000;"></i>
                     This may take a few minutes depending on video length.
-                    You can leave and come back via <a href="{{ url_for('sessions_list') }}" style="color: #ffd700;">Sessions</a>.
+                    You can leave and come back via <a href="{{ url_for('sessions_list') }}" style="color: #E55000;">Sessions</a>.
                 </div>
             </div>
         </div>
@@ -57,10 +57,10 @@ function pollStatus() {
                 window.location.href = data.redirect;
             } else if (data.status === 'failed') {
                 bar.classList.remove('progress-bar-animated');
-                bar.style.background = '#dc3545';
+                bar.style.background = '#E53935';
                 bar.textContent = 'Failed';
                 msg.textContent = data.error || 'Analysis failed. Please try again.';
-                msg.style.color = '#dc3545';
+                msg.style.color = '#E53935';
             } else {
                 setTimeout(pollStatus, 1200);
             }

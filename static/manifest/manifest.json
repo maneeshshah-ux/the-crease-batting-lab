@@ -1,12 +1,12 @@
 {
   "name": "the CREASE Batting Lab",
   "short_name": "the CREASE",
-  "description": "Zero-cost AI-powered cricket batting analysis. Record, analyse, improve.",
+  "description": "AI-powered cricket batting analysis — where every cricketer gets better.",
   "start_url": "/",
   "display": "standalone",
   "orientation": "any",
-  "background_color": "#1a1a2e",
-  "theme_color": "#ffd700",
+  "background_color": "#0A0A0A",
+  "theme_color": "#E55000",
   "icons": [
     {
       "src": "/static/icons/icon.svg",
