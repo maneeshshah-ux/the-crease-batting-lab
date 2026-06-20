@@ -2,18 +2,17 @@
 # Render Blueprint — the CREASE Batting Lab
 # =============================================================================
 # Deploy button:
-#   https://render.com/deploy?repo=https://github.com/YOUR_USER/batting_analyser
+#   https://render.com/deploy?repo=https://github.com/maneeshshah-ux/the-crease-batting-lab
 #
-# 1. Fork / push this repo to GitHub
-# 2. Click the deploy button above (or connect Render to your repo manually)
-# 3. Render builds using the Dockerfile and deploys
+# 1. Click the deploy button above (or connect Render to your repo manually)
+# 2. Render builds using the Dockerfile and deploys
 # =============================================================================
 
 services:
   - type: web
     name: the-crease-batting-lab
     runtime: image
-    repo: https://github.com/YOUR_USER/batting_analyser
+    repo: https://github.com/maneeshshah-ux/the-crease-batting-lab
     branch: main
     plan: free
 
