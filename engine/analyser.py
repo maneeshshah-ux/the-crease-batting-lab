@@ -147,6 +147,7 @@ class BattingAnalyser:
                 "timestamp_sec": frame_idx / max(1, video_fps),
             }
 
+            fm = {}  # default empty
             if pose_result["success"]:
                 fm = self.metrics.compute_frame_metrics(pose_result["landmarks"])
                 frame_metrics.update(fm)

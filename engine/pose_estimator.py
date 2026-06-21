@@ -76,7 +76,11 @@ class PoseEstimator:
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
         )
-        self.mp_drawing = mp.solutions.pose_utils
+        # Drawing utilities (mediapipe 0.10.x uses drawing_utils)
+        try:
+            self.mp_drawing = mp.solutions.drawing_utils
+        except AttributeError:
+            self.mp_drawing = mp.solutions.pose_utils
         self.mp_pose = mp.solutions.pose
 
     def process_frame(self, frame):
