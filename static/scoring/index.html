@@ -776,7 +776,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
   const st = striker();
   if (!st) return;
   
-  // Track who was on strike BEFORE this ball (for bonus run feature)
+  // The batter facing this ball (the striker at the start of this ball)
   inn.lastLegalStriker = inn.striker;
   
   if (!hadBonus || !bonusBatter || runs !== 1) {
@@ -790,7 +790,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
     if (runs % 2 === 1) inn.striker = inn.striker === 1 ? 2 : 1;
     inn.history.push({
       type: 'run', over: inn.over, ballNum: inn.legalBalls,
-      b: inn.striker === 1 ? 2 : 1, runs: total, bonus: hadBonus,
+      b: inn.lastLegalStriker, runs: total, bonus: hadBonus,
       freeHit: inn.freeHit, bowler: inn.currentBowler, runningTotal: inn.total
     });
   } else {
@@ -808,7 +808,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
     if (runs % 2 === 1) inn.striker = inn.striker === 1 ? 2 : 1;
     inn.history.push({
       type: 'run', over: inn.over, ballNum: inn.legalBalls,
-      b: inn.striker === 1 ? 2 : 1, runs: total, bonus: true,
+      b: inn.lastLegalStriker, runs: total, bonus: true,
       freeHit: inn.freeHit, bowler: inn.currentBowler, runningTotal: inn.total
     });
   }
@@ -896,12 +896,13 @@ function wideBall() {
     inn2.total += total;
     inn2.extras.wides += total;
     inn2.totalBalls++;
+    const wideStriker = inn2.striker;
     if (extra % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
     const wbNum = inn2.totalBalls;
     inn2.history.push({
       type: 'wide', over: inn2.over, ballNum: wbNum,
       displayOrder: inn2.totalBalls,
-      b: inn2.striker, runs: total, freeHit: false,
+      b: wideStriker, runs: total, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
     tryRotateStrike();
@@ -928,12 +929,13 @@ function noBall() {
     inn2.total += 1 + batRuns;
     inn2.extras.noBalls += 1;
     inn2.totalBalls++;
+    const nbStriker = inn2.striker;
     if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
     const nbNum = inn2.totalBalls;
     inn2.history.push({
       type: 'noball', over: inn2.over, ballNum: nbNum,
       displayOrder: inn2.totalBalls,
-      b: inn2.striker, runs: 1 + batRuns, freeHit: false,
+      b: nbStriker, runs: 1 + batRuns, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
     inn2.freeHit = true;
@@ -958,10 +960,11 @@ function byes() {
     inn2.extras.byes += runs;
     inn2.legalBalls++;
     inn2.totalBalls++;
+    const byeStriker = inn2.striker;
     if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
     inn2.history.push({
       type: 'bye', over: inn2.over, ballNum: inn2.legalBalls,
-      b: inn2.striker === 1 ? 2 : 1, runs: runs, freeHit: false,
+      b: byeStriker, runs: runs, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
     inn2.freeHit = false; tryRotateStrike(); checkOver(); checkLimits(); render();
@@ -984,10 +987,11 @@ function legByes() {
     inn2.extras.legByes += runs;
     inn2.legalBalls++;
     inn2.totalBalls++;
+    const lbStriker = inn2.striker;
     if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
     inn2.history.push({
       type: 'legbye', over: inn2.over, ballNum: inn2.legalBalls,
-      b: inn2.striker === 1 ? 2 : 1, runs: runs, freeHit: false,
+      b: lbStriker, runs: runs, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
     inn2.freeHit = false; tryRotateStrike(); checkOver(); checkLimits(); render();
