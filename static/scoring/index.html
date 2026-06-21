@@ -262,7 +262,9 @@ const state = {
   completedInnings: [],
   view: 'setup',
   currentPairIdx: 0,
-  modifiedRules: true
+  modifiedRules: true,
+  maxOvers: 6,
+  maxBallsPerBatter: 18
 };
 const S = () => state;
 
@@ -290,7 +292,8 @@ function makeInnings(pairIdx) {
     freeHit: false, bonusActive: false,
     currentBowler: S().allPlayers[0] || '',
     prevBowler: '',
-    complete: false, maxOvers: 6,
+    complete: false, maxOvers: S().maxOvers,
+    lastLegalStriker: null,
     history: []
   };
 }
@@ -319,8 +322,9 @@ function canBat(num) {
   const inn = S().innings;
   if (!inn) return false;
   const b = num === 1 ? inn.b1 : inn.b2;
-  if (S().modifiedRules) return b.legalBf < 18;
-  return !b.howOut && b.legalBf < 18;
+  const maxBf = S().maxBallsPerBatter;
+  if (S().modifiedRules) return b.legalBf < maxBf;
+  return !b.howOut && b.legalBf < maxBf;
 }
 
 function closeAllModals() {
@@ -389,15 +393,40 @@ function renderSetup() {
     + [1,2,3,4,5,6,7,8].map(n => '<option value="' + n + '"' + (n === s.numPairs ? ' selected' : '') + '>' + n + ' pair' + (n > 1 ? 's' : '') + '</option>').join('')
     + '</select><div id="pairConfig">' + pc + '</div>'
     + '<button class="btn btn-sm btn-dark" onclick="autoAssignPairs()" style="margin-top:4px">Auto-assign Pairs</button></div>'
-    + '<div class="card"><h2>Rules</h2>'
-    + '<div class="toggle-row"><label>Modified rules (3\u21924 runs, bonus run, wicket penalty)</label>'
-    + '<label class="toggle"><input type="checkbox" id="rulesToggle"' + (s.modifiedRules ? ' checked' : '') + ' onchange="S().modifiedRules=this.checked"><span class="slider"></span></label></div>'
-    + '<div style="font-size:10px;color:var(--dim);line-height:1.5;margin-top:6px"><strong>Modified:</strong> 3 runs scored as 4 \u00b7 +1 bonus run toggle \u00b7 wicket penalty -5 (ov 1-4) / -2 (ov 5-6) \u00b7 pair bats all 6 overs regardless of wickets</div></div>'
+    + '<div class="card"><h2>Session Settings</h2>'
+    + '<label>Overs per pair</label>'
+    + '<input type="number" id="maxOversInput" value="' + s.maxOvers + '" min="1" max="20" onchange="updateSessionSettings()">'
+    + '<label>Max balls per batter</label>'
+    + '<input type="number" id="maxBallsInput" value="' + s.maxBallsPerBatter + '" min="1" max="60" onchange="updateSessionSettings()">'
+    + '<div class="toggle-row" style="margin-top:8px"><label>Variation Mode <span style="color:var(--orange);font-size:10px">(Custom rules)</span></label>'
+    + '<label class="toggle"><input type="checkbox" id="rulesToggle"' + (s.modifiedRules ? ' checked' : '') + ' onchange="S().modifiedRules=this.checked;updateRulesDesc()"><span class="slider"></span></label></div>'
+    + '<div style="font-size:10px;color:var(--dim);line-height:1.5;margin-top:6px" id="rulesDesc">'
+    + (s.modifiedRules
+      ? '<strong>Variation ON:</strong> 3 runs scored as 4 \u00b7 +1 bonus run per ball \u00b7 wicket penalty -5 (ov 1-4) / -2 (ov 5-6) \u00b7 pair bats all overs regardless of wickets'
+      : '<strong>Standard Rules:</strong> Normal cricket scoring. Runs as scored. No wicket penalty. Innings ends after 2 wickets or overs limit.')
+    + '</div></div>'
     + '<button class="btn btn-orange btn-block" onclick="startMatch()">Start Match \u2192</button>'
-    + '<div style="font-size:11px;color:var(--dim);text-align:center;margin-top:6px">6 overs per pair \u00b7 18 balls max per batter</div></div>';
+    + '<div style="font-size:11px;color:var(--dim);text-align:center;margin-top:6px" id="sessionSummaryLine">' + s.maxOvers + ' overs per pair \u00b7 ' + s.maxBallsPerBatter + ' balls max per batter</div></div>';
 }
 
 function loadPlayers() { readPlayersFromInput(); autoAssignPairs(); }
+
+function updateSessionSettings() {
+  const mo = document.getElementById('maxOversInput');
+  const mb = document.getElementById('maxBallsInput');
+  if (mo) S().maxOvers = parseInt(mo.value) || 6;
+  if (mb) S().maxBallsPerBatter = parseInt(mb.value) || 18;
+  const sl = document.getElementById('sessionSummaryLine');
+  if (sl) sl.textContent = S().maxOvers + ' overs per pair \u00b7 ' + S().maxBallsPerBatter + ' balls max per batter';
+}
+
+function updateRulesDesc() {
+  const d = document.getElementById('rulesDesc');
+  if (!d) return;
+  d.innerHTML = S().modifiedRules
+    ? '<strong>Variation ON:</strong> 3 runs scored as 4 \u00b7 +1 bonus run per ball \u00b7 wicket penalty -5 (ov 1-4) / -2 (ov 5-6) \u00b7 pair bats all overs regardless of wickets'
+    : '<strong>Standard Rules:</strong> Normal cricket scoring. Runs as scored. No wicket penalty. Innings ends after 2 wickets or overs limit.';
+}
 
 function removePlayer(i) {
   S().allPlayers.splice(i, 1);
@@ -434,6 +463,7 @@ function autoAssignPairs() {
 
 function startMatch() {
   readPlayersFromInput();
+  updateSessionSettings();
   if (S().allPlayers.length < 2) { alert('Enter at least 2 players'); return; }
   for (const p of S().pairs) { if (!p.b1 || !p.b2) { alert('All pairs need 2 batters selected'); return; } }
   S().completedInnings = [];
@@ -442,36 +472,82 @@ function startMatch() {
   render();
 }
 
-function renderPairSelect() {
-  const s = S();
-  const pi = s.currentPairIdx;
-  if (pi >= s.pairs.length) { s.view = 'summary'; render(); return; }
-  const pair = s.pairs[pi];
-  const excludes = [pair.b1, pair.b2];
-  const bowlerOpts = s.allPlayers.filter(n => !excludes.includes(n)).map(n => '<option value="' + n + '">' + n + '</option>').join('');
-
-  document.getElementById('app').innerHTML = logoHTML(true)
-    + '<div class="card" style="text-align:center;padding:30px 20px">'
-    + '<h2>Pair ' + (pi + 1) + ' of ' + s.pairs.length + '</h2>'
-    + '<div style="font-size:20px;font-weight:700;margin:16px 0 4px;color:var(--orange)">' + pair.b1 + '</div>'
-    + '<div style="font-size:14px;color:var(--dim)">&amp;</div>'
-    + '<div style="font-size:20px;font-weight:700;margin:4px 0 16px;color:var(--orange)">' + pair.b2 + '</div>'
-    + '<div style="margin-bottom:14px"><label style="font-size:12px;color:var(--dim);display:block;margin-bottom:4px">First bowler</label>'
-    + '<select id="firstBowler" style="padding:8px 14px;border-radius:8px;border:1px solid var(--border);background:var(--card2);color:var(--text);font-size:14px;width:200px">' + bowlerOpts + '</select></div>'
-    + '<button class="btn btn-orange" onclick="beginInnings()" id="beginBtn" style="min-width:160px">\u25b6 Batting Innings</button></div>';
+function getCompletedPairIndices() {
+  return S().completedInnings.map(function(inn) { return inn.pairIdx; });
 }
 
-function beginInnings() {
-  const sel = document.getElementById('firstBowler');
-  if (!sel) { alert('Error: page not ready. Try again.'); return; }
-  const idx = S().currentPairIdx;
+function renderPairSelect() {
+  const s = S();
+  const completed = getCompletedPairIndices();
+  const allDone = s.pairs.every(function(p, i) { return completed.includes(i); });
+  if (allDone && s.completedInnings.length > 0) { s.view = 'summary'; render(); return; }
+  if (allDone && s.completedInnings.length === 0) { s.view = 'setup'; render(); return; }
+
+  let pairCards = '';
+  for (let i = 0; i < s.pairs.length; i++) {
+    const p = s.pairs[i];
+    const done = completed.includes(i);
+    pairCards += '<div class="card" style="' + (done ? 'opacity:0.5' : 'cursor:pointer') + '">'
+      + '<div style="display:flex;justify-content:space-between;align-items:center">'
+      + '<div><strong style="font-size:14px;color:var(--orange)">Pair ' + (i+1) + '</strong>'
+      + '<div style="font-size:15px;margin-top:4px">' + p.b1 + ' &amp; ' + p.b2 + '</div></div>'
+      + (done
+        ? '<span style="color:var(--green);font-size:12px">\u2713 Completed</span>'
+        : '<button class="btn btn-orange" onclick="beginInnings(' + i + ')" style="min-width:100px">\u25b6 Bat</button>')
+      + '</div></div>';
+  }
+
+  document.getElementById('app').innerHTML = logoHTML(true)
+    + '<div class="card"><h2>Select Pair to Bat</h2><div style="font-size:11px;color:var(--dim);margin-bottom:8px">'
+    + s.maxOvers + ' overs per pair \u00b7 max ' + s.maxBallsPerBatter + ' balls each</div>'
+    + pairCards
+    + '<button class="btn btn-dark btn-block" onclick="S().view=\'summary\';render()" style="margin-top:8px">View Session Summary</button></div>'
+    + '<button class="btn btn-dark btn-block" onclick="showBowlerSelectBeforeMatch()">Set Bowler for Next Pair</button></div>';
+}
+
+function beginInnings(pairIdx) {
+  const idx = pairIdx !== undefined ? pairIdx : S().currentPairIdx;
+  const p = S().pairs[idx];
+  if (!p || !p.b1 || !p.b2) { alert('Pair not configured'); return; }
+  // Default bowler if not set
+  const existing = S()._nextBowler || '';
+  const excludes = [p.b1, p.b2];
+  let avail = S().allPlayers.filter(function(n) { return !excludes.includes(n); });
+  if (!existing || !avail.includes(existing)) {
+    S()._nextBowler = avail[0] || '';
+  }
   const inn = makeInnings(idx);
   if (!inn) { alert('Error creating innings. Please restart.'); return; }
-  inn.currentBowler = sel.value || S().allPlayers[0] || '';
+  inn.currentBowler = S()._nextBowler || S().allPlayers[0] || '';
   S().innings = inn;
+  S().currentPairIdx = idx;
   S().view = 'match';
   closeAllModals();
   render();
+}
+
+function showBowlerSelectBeforeMatch() {
+  const p = S().pairs[0];
+  if (!p) return;
+  const excludes = [p.b1, p.b2];
+  // Pre-select next bowler from all players not in first pair
+  let avail = S().allPlayers.filter(function(n) { return !excludes.includes(n); });
+  if (avail.length === 0) avail = S().allPlayers;
+  const opts = avail.map(function(n) {
+    return '<option value="' + n + '"' + (n === (S()._nextBowler || '') ? ' selected' : '') + '>' + n + '</option>';
+  }).join('');
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = '<div class="modal"><h3>Default Bowler</h3><div class="field"><label>Bowler for next pair</label>'
+    + '<select id="preBowlerSel" style="width:100%;padding:10px;border-radius:8px;border:1px solid var(--border);background:var(--bg);color:var(--text);font-size:14px;color-scheme:dark">' + opts + '</select></div>'
+    + '<div class="modal-actions"><button class="btn btn-orange" onclick="setPreBowler()" style="flex:1">Set</button>'
+    + '<button class="btn btn-dark" onclick="closeAllModals()">Cancel</button></div></div>';
+  document.body.appendChild(m);
+}
+function setPreBowler() {
+  const sel = document.getElementById('preBowlerSel');
+  if (sel && sel.value) S()._nextBowler = sel.value;
+  closeAllModals();
 }
 function renderMatch() {
   const inn = S().innings;
@@ -480,7 +556,7 @@ function renderMatch() {
   const card = (b, num) => {
     const nn = num === 1 ? inn.b1Name : inn.b2Name;
     const isStriker = inn.striker === num;
-    const isRetired = b.legalBf >= 18 && !b.howOut;
+    const isRetired = b.legalBf >= S().maxBallsPerBatter && !b.howOut;
     return '<div class="bat-card' + (isStriker ? ' striker' : '') + '">'
       + '<div class="name">' + nn + (isStriker ? ' \u2726' : '') + '</div>'
       + '<div class="runs">' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</div>'
@@ -490,21 +566,25 @@ function renderMatch() {
       + '</div>';
   };
 
+  const overEvents = inn.history.filter(h => h.over === inn.over);
   const dots = [];
-  for (let i = 1; i <= 6; i++) {
-    const ev = inn.history.filter(h => h.over === inn.over).find(h => h.ballNum === i);
-    if (ev) {
+  let legalCount = 0;
+  for (const ev of overEvents) {
+    if (ev.type === 'wide' || ev.type === 'noball') {
+      let cls = 'runs', lbl = ev.runs;
+      if (ev.type === 'wide') { cls = 'wide'; lbl = 'Wd' + (ev.runs > 1 ? ev.runs : ''); }
+      else if (ev.type === 'noball') { cls = 'noball'; lbl = 'NB' + (ev.runs > 1 ? ev.runs : ''); }
+      dots.push('<div class="ball-dot ' + cls + '">' + lbl + '</div>');
+    } else {
+      legalCount++;
       let cls = 'runs', lbl = ev.runs;
       if (ev.type === 'wicket') { cls = 'wicket'; lbl = 'W'; }
-      else if (ev.type === 'wide') { cls = 'wide'; lbl = 'Wd' + (ev.runs > 1 ? ev.runs : ''); }
-      else if (ev.type === 'noball') { cls = 'noball'; lbl = 'NB' + (ev.runs > 1 ? ev.runs : ''); }
       else if (ev.type === 'bye' || ev.type === 'legbye') { cls = 'byes'; lbl = ev.runs + 'b'; }
       dots.push('<div class="ball-dot ' + cls + '">' + lbl + '</div>');
-    } else if (i <= inn.legalBalls) {
-      dots.push('<div class="ball-dot empty" style="opacity:0.4">?</div>');
-    } else {
-      dots.push('<div class="ball-dot empty">-</div>');
     }
+  }
+  for (let i = legalCount + 1; i <= 6; i++) {
+    dots.push('<div class="ball-dot empty">-</div>');
   }
 
   const ext = inn.extras;
@@ -519,6 +599,8 @@ function renderMatch() {
     else if (h.type === 'noball') { txt = 'NB ' + h.runs + 'r \u2726FH'; cls = 'nb'; }
     else if (h.type === 'bye') { txt = h.runs + ' bye' + (h.runs > 1 ? 's' : ''); cls = 'bye'; }
     else if (h.type === 'legbye') { txt = h.runs + ' leg bye' + (h.runs > 1 ? 's' : ''); cls = 'bye'; }
+    else if (h.type === 'bonus') { txt = '+1 bonus ' + (h.bonusBatter || nm); cls = 'bonus'; }
+    else if (h.type === 'penalty') { txt = 'Penalty +' + h.runs; cls = 'bonus'; }
     else { txt = nm + ' ' + h.runs + (h.bonus ? '+1' : ''); if (h.bonus) cls = 'bonus'; }
     return '<div class="hist-item"><span class="ball">' + h.over + '.' + h.ballNum + '</span><span class="evt ' + cls + '">' + txt + '</span><span class="total">' + h.runningTotal + '</span></div>';
   }).join('');
@@ -546,7 +628,7 @@ function renderMatch() {
     + (inn.freeHit ? '<div class="fh">\u2726 FREE HIT</div>' : '') + '</div></div>'
     + '<div class="scoreboard">' + card(inn.b1, 1) + '<div style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--dim)">vs</div>' + card(inn.b2, 2) + '</div>'
     + (inn.complete
-      ? '<button class="btn btn-orange btn-block" onclick="nextPair()" style="margin-bottom:10px">' + (S().currentPairIdx + 1 < S().pairs.length ? 'Next Pair \u2192' : 'View Match Summary') + '</button>'
+      ? '<button class="btn btn-orange btn-block" onclick="nextPair()" style="margin-bottom:10px">\u2713 Pair Complete — Select Next Pair</button>'
       : '<div class="over-tracker">' + dots.join('') + '</div>'
       + '<div class="controls">'
       + '<div class="sec-label">Runs' + (inn.freeHit ? '<span class="badge badge-fh">\u2726 FREE HIT</span>' : '') + (inn.bonusActive ? '<span class="badge badge-bonus">+1 BONUS</span>' : '') + '</div>'
@@ -558,11 +640,14 @@ function renderMatch() {
       + '<button class="btn btn-dark" onclick="wideBall()">Wide</button>'
       + '<button class="btn btn-dark" onclick="noBall()">No Ball</button>'
       + '<button class="btn btn-dark" onclick="byes()">Bye</button>'
-      + '<button class="btn btn-dark" onclick="legByes()">Leg Bye</button></div>'
+      + '<button class="btn btn-dark" onclick="legByes()">Leg Bye</button>'
+      + '<button class="btn btn-dark" onclick="penaltyRuns()">Penalty</button></div>'
       + '<div class="action-btns">'
       + '<button class="btn ' + (inn.bonusActive ? 'btn-orange' : 'btn-dark') + '" onclick="toggleBonus()">+1 Bonus</button>'
+      + '<button class="btn btn-dark" onclick="swapStrike()">\u21c4 Swap</button>'
       + '<button class="btn btn-red" onclick="wicket()">WICKET</button>'
       + '<button class="btn btn-dark" onclick="undo()">\u21a9 Undo</button>'
+      + '<button class="btn btn-dark" onclick="showLiveSessionStats()">Session Stats</button>'
       + '<button class="btn btn-dark" onclick="endInnings()">End Inns</button>'
       + '<button class="btn btn-dark" onclick="endMatch()">End All</button></div></div>')
     + '<div class="history"><div class="hdr">Ball-by-ball</div>'
@@ -579,7 +664,7 @@ function renderScorecard() {
   const extTotal = ext.wides + ext.noBalls + ext.byes + ext.legByes;
 
   let bHtml = '';
-  for (const b of [{ name: inn.b1Name, runs: b1.runs, balls: b1.bf, dotBalls: b1.dotBalls, fours: b1.fours, sixes: b1.sixes, threes: b1.threes || 0, bonusRuns: b1.bonusRuns, howOut: b1.howOut, retired: b1.legalBf >= 18 }, { name: inn.b2Name, runs: b2.runs, balls: b2.bf, dotBalls: b2.dotBalls, fours: b2.fours, sixes: b2.sixes, threes: b2.threes || 0, bonusRuns: b2.bonusRuns, howOut: b2.howOut, retired: b2.legalBf >= 18 }]) {
+  for (const b of [{ name: inn.b1Name, runs: b1.runs, balls: b1.bf, dotBalls: b1.dotBalls, fours: b1.fours, sixes: b1.sixes, threes: b1.threes || 0, bonusRuns: b1.bonusRuns, howOut: b1.howOut, retired: b1.legalBf >= S().maxBallsPerBatter }, { name: inn.b2Name, runs: b2.runs, balls: b2.bf, dotBalls: b2.dotBalls, fours: b2.fours, sixes: b2.sixes, threes: b2.threes || 0, bonusRuns: b2.bonusRuns, howOut: b2.howOut, retired: b2.legalBf >= S().maxBallsPerBatter }]) {
     const dis = b.howOut || (b.retired ? 'Retired' : (inn.complete ? 'Not Out' : 'Batting'));
     bHtml += '<tr><td class="name">' + b.name + '</td><td>' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</td><td>' + b.balls + '</td><td>' + b.dotBalls + '</td><td>' + b.fours + '</td><td>' + b.sixes + '</td><td>' + b.threes + '</td><td>' + (b.bonusRuns || '') + '</td><td style="font-size:10px;color:var(--dim)">' + dis + '</td></tr>';
   }
@@ -611,6 +696,7 @@ function renderScorecard() {
     else if (h.type === 'noball') txt = 'NB ' + h.runs + 'r';
     else if (h.type === 'bye') txt = h.runs + ' bye' + (h.runs > 1 ? 's' : '');
     else if (h.type === 'legbye') txt = h.runs + ' leg bye' + (h.runs > 1 ? 's' : '');
+    else if (h.type === 'penalty') txt = 'Penalty +' + h.runs;
     else txt = nm + ' ' + h.runs + (h.bonus ? '+1' : '');
     return '<div class="hist-item"><span class="ball">' + h.over + '.' + h.ballNum + '</span><span class="evt">' + txt + '</span><span class="total">' + h.runningTotal + '</span></div>';
   }).join('') || '<div style="font-size:11px;color:var(--dim)">No balls yet</div>';
@@ -660,8 +746,12 @@ function applyRuns(runs, hadBonus, bonusBatter) {
 
   const st = striker();
   if (!st) return;
+  
+  // Track who was on strike BEFORE this ball (for bonus run feature)
+  inn.lastLegalStriker = inn.striker;
+  
   if (!hadBonus || !bonusBatter || runs !== 1) {
-    st.runs += total; st.grossRuns += total; st.bf++; if (st.legalBf < 18) st.legalBf++;
+    st.runs += total; st.grossRuns += total; st.bf++; if (st.legalBf < S().maxBallsPerBatter) st.legalBf++;
     if (total === 0) st.dotBalls++;
     if (runs === 3) st.threes++;
     if (runs === 4) st.fours++;
@@ -675,7 +765,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
       freeHit: inn.freeHit, bowler: inn.currentBowler, runningTotal: inn.total
     });
   } else {
-    st.runs += runs; st.grossRuns += runs; st.bf++; if (st.legalBf < 18) st.legalBf++;
+    st.runs += runs; st.grossRuns += runs; st.bf++; if (st.legalBf < S().maxBallsPerBatter) st.legalBf++;
     if (runs === 0) st.dotBalls++;
     if (runs === 3) st.threes++;
     st.bonusRuns++;
@@ -683,7 +773,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
     if (runs === 6) st.sixes++;
     const bb = bonusBatter === 1 ? inn.b1 : inn.b2;
     bb.runs += 1; bb.grossRuns += 1;
-    if (bb.bf === 0) { bb.bf++; if (bb.legalBf < 18) bb.legalBf++; }
+    if (bb.bf === 0) { bb.bf++; if (bb.legalBf < S().maxBallsPerBatter) bb.legalBf++; }
     inn.total += total;
     inn.legalBalls++; inn.totalBalls++;
     if (runs % 2 === 1) inn.striker = inn.striker === 1 ? 2 : 1;
@@ -778,8 +868,10 @@ function wideBall() {
     inn2.extras.wides += total;
     inn2.totalBalls++;
     if (extra % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+    const wbNum = inn2.totalBalls;
     inn2.history.push({
-      type: 'wide', over: inn2.over, ballNum: inn2.legalBalls + 1,
+      type: 'wide', over: inn2.over, ballNum: wbNum,
+      displayOrder: inn2.totalBalls,
       b: inn2.striker, runs: total, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
@@ -808,8 +900,10 @@ function noBall() {
     inn2.extras.noBalls += 1;
     inn2.totalBalls++;
     if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+    const nbNum = inn2.totalBalls;
     inn2.history.push({
-      type: 'noball', over: inn2.over, ballNum: inn2.legalBalls + 1,
+      type: 'noball', over: inn2.over, ballNum: nbNum,
+      displayOrder: inn2.totalBalls,
       b: inn2.striker, runs: 1 + batRuns, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
@@ -830,7 +924,7 @@ function byes() {
     pushUndo();
     const st = striker();
     if (!st) return;
-    st.bf++; if (st.legalBf < 18) st.legalBf++; st.dotBalls++;
+    st.bf++; if (st.legalBf < S().maxBallsPerBatter) st.legalBf++; st.dotBalls++;
     inn2.total += runs;
     inn2.extras.byes += runs;
     inn2.legalBalls++;
@@ -856,7 +950,7 @@ function legByes() {
     pushUndo();
     const st = striker();
     if (!st) return;
-    st.bf++; if (st.legalBf < 18) st.legalBf++; st.dotBalls++;
+    st.bf++; if (st.legalBf < S().maxBallsPerBatter) st.legalBf++; st.dotBalls++;
     inn2.total += runs;
     inn2.extras.legByes += runs;
     inn2.legalBalls++;
@@ -870,6 +964,25 @@ function legByes() {
     inn2.freeHit = false; tryRotateStrike(); checkOver(); checkLimits(); render();
   };
   showPickModal('How many leg byes?', [1, 2, 3, 4]);
+}
+
+function penaltyRuns() {
+  const inn = S().innings;
+  if (!inn || inn.complete) return;
+  window._pickFn = function(runs) {
+    const inn2 = S().innings;
+    if (!inn2 || inn2.complete) return;
+    pushUndo();
+    inn2.total += runs;
+    inn2.extras.penalty = (inn2.extras.penalty || 0) + runs;
+    inn2.history.push({
+      type: 'penalty', over: inn2.over, ballNum: inn2.legalBalls + 1,
+      b: inn2.striker, runs: runs, freeHit: false,
+      bowler: inn2.currentBowler, runningTotal: inn2.total
+    });
+    render();
+  };
+  showPickModal('Penalty runs?', [5, 10, 2, 3, 4]);
 }
 
 function wicket() {
@@ -934,9 +1047,28 @@ function confirmWkt() {
   if (d.mode === 'Run Out') {
     const rb = document.getElementById('rb');
     if (rb) ob = parseInt(rb.value);
+    // Show runs picker first
+    closeWktModal();
+    window._runOutData = { mode: d.mode, fielder: f, outB: ob };
+    showPickModal('Runs completed before run out?', [0, 1, 2, 3, 4]);
+    window._pickFn = function(runs) {
+      const rod = window._runOutData;
+      window._runOutData = null;
+      if (!rod) return;
+      processWkt(rod.mode, rod.fielder, rod.outB, runs);
+    };
+    return;
   }
   closeWktModal();
   processWkt(d.mode, f, ob);
+}
+
+function swapStrike() {
+  const inn = S().innings;
+  if (!inn || inn.complete) return;
+  pushUndo();
+  inn.striker = inn.striker === 1 ? 2 : 1;
+  render();
 }
 
 function tryRotateStrike() {
@@ -948,36 +1080,63 @@ function tryRotateStrike() {
   }
 }
 
-function processWkt(mode, fielder, outB) {
+function processWkt(mode, fielder, outB, runOutRuns) {
   const inn = S().innings;
   const bat = outB === 1 ? inn.b1 : inn.b2;
+
+  // Handle runs completed on a run out
+  let runsOnPlay = 0;
+  if (mode === 'Run Out' && runOutRuns > 0) {
+    runsOnPlay = runOutRuns;
+    // Credit runs to the striker
+    const st = striker();
+    if (st) {
+      st.runs += runsOnPlay;
+      st.grossRuns = (st.grossRuns || 0) + runsOnPlay;
+      st.bf++;
+      if (st.legalBf < S().maxBallsPerBatter) st.legalBf++;
+      if (runsOnPlay === 4) st.fours++;
+      if (runsOnPlay === 6) st.sixes++;
+    }
+    inn.total += runsOnPlay;
+    if (runOutRuns % 2 === 1 && outB !== inn.striker) {
+      // Runs completed involved striker, change strike
+      inn.striker = inn.striker === 1 ? 2 : 1;
+    }
+  }
 
   if (S().modifiedRules) {
     const penalty = inn.over <= 3 ? 5 : 2;
     bat.runs -= penalty;
     inn.total -= penalty;
     inn.extras.penalty = (inn.extras.penalty || 0) + penalty;
-    bat.bf++;
-    if (bat.legalBf < 18) bat.legalBf++;
+    // Only count ball+legalBf if batter didn't already get credit from runs
+    if (runsOnPlay === 0) {
+      bat.bf++;
+      if (bat.legalBf < S().maxBallsPerBatter) bat.legalBf++;
+    }
     inn.wkts++;
     inn.legalBalls++;
     inn.totalBalls++;
     if (inn.legalBalls % 6 === 0) inn.ball6 = true;
     inn.history.push({
       type: 'wicket', over: inn.over, ballNum: inn.legalBalls,
-      b: outB, runs: -penalty, mode: mode, fielder: fielder,
+      b: outB, runs: (runsOnPlay - penalty), mode: mode, fielder: fielder,
       bowler: inn.currentBowler, freeHit: false, runningTotal: inn.total
     });
     inn.freeHit = false;
     checkOver();
     if (inn.over >= inn.maxOvers) inn.complete = true;
-    if ((inn.b1.legalBf >= 18 || !canBat(1)) && (inn.b2.legalBf >= 18 || !canBat(2))) inn.complete = true;
+    if ((inn.b1.legalBf >= S().maxBallsPerBatter || !canBat(1)) && (inn.b2.legalBf >= S().maxBallsPerBatter || !canBat(2))) inn.complete = true;
     tryRotateStrike();
     render();
   } else {
-    bat.bf++;
-    if (bat.legalBf < 18) bat.legalBf++;
-    bat.dotBalls++;
+    // Standard rules - only count ball/bf if not already credited
+    if (runsOnPlay === 0) {
+      bat.bf++;
+      if (bat.legalBf < S().maxBallsPerBatter) bat.legalBf++;
+      bat.dotBalls++;
+    }
     bat.dismissals++;
     bat.howOut = mode;
     bat.fielder = fielder;
@@ -992,7 +1151,7 @@ function processWkt(mode, fielder, outB) {
     }
     inn.history.push({
       type: 'wicket', over: inn.over, ballNum: inn.legalBalls,
-      b: outB, runs: 0, mode: mode, fielder: fielder,
+      b: outB, runs: runsOnPlay, mode: mode, fielder: fielder,
       bowler: inn.currentBowler, freeHit: false, runningTotal: inn.total
     });
     inn.freeHit = false;
@@ -1026,10 +1185,10 @@ function checkLimits() {
   if (!inn) return;
   if (inn.over >= inn.maxOvers) inn.complete = true;
   if (S().modifiedRules) {
-    if ((inn.b1.legalBf >= 18 || !canBat(1)) && (inn.b2.legalBf >= 18 || !canBat(2))) inn.complete = true;
+    if ((inn.b1.legalBf >= S().maxBallsPerBatter || !canBat(1)) && (inn.b2.legalBf >= S().maxBallsPerBatter || !canBat(2))) inn.complete = true;
   } else {
     if (inn.wkts >= 2) inn.complete = true;
-    if ((inn.b1.legalBf >= 18 || inn.b1.howOut) && (inn.b2.legalBf >= 18 || inn.b2.howOut)) inn.complete = true;
+    if ((inn.b1.legalBf >= S().maxBallsPerBatter || inn.b1.howOut) && (inn.b2.legalBf >= S().maxBallsPerBatter || inn.b2.howOut)) inn.complete = true;
   }
   if (inn.complete) tryRotateStrike();
 }
@@ -1084,13 +1243,132 @@ function confirmBowler() {
 function toggleBonus() {
   const inn = S().innings;
   if (!inn || inn.complete) return;
-  inn.bonusActive = !inn.bonusActive;
+  // Direct credit to last legal striker (no pre-activation mode)
+  const targetBatter = inn.lastLegalStriker === 1 ? inn.b1 : (inn.lastLegalStriker === 2 ? inn.b2 : striker());
+  if (!targetBatter) return;
+  pushUndo();
+  targetBatter.runs += 1;
+  targetBatter.grossRuns = (targetBatter.grossRuns || 0) + 1;
+  targetBatter.bonusRuns = (targetBatter.bonusRuns || 0) + 1;
+  inn.total += 1;
+  // Add bonus history entry linked to the last ball
+  const lastEntry = inn.history.length > 0 ? inn.history[inn.history.length - 1] : null;
+  const bonusBallNum = lastEntry ? lastEntry.ballNum : (inn.legalBalls + 1);
+  const bonusOver = lastEntry ? lastEntry.over : inn.over;
+  const bonusBatter = inn.lastLegalStriker === 1 ? inn.b1Name : (inn.lastLegalStriker === 2 ? inn.b2Name : inn.b1Name);
+  inn.history.push({
+    type: 'bonus', over: bonusOver, ballNum: bonusBallNum,
+    b: inn.lastLegalStriker || inn.striker, runs: 1, bonus: true,
+    bonusBatter: bonusBatter,
+    freeHit: false, bowler: inn.currentBowler, runningTotal: inn.total
+  });
+  inn.bonusActive = false;
+  inn.freeHit = false;
   render();
 }
 
 function endInnings() { if (confirm('End this innings?')) { S().innings.complete = true; closeAllModals(); render(); } }
 function endMatch() { if (confirm('End entire match?')) { S().innings.complete = true; nextPair(); } }
 function saveInnings() { S().completedInnings.push(JSON.parse(JSON.stringify(S().innings))); }
+
+// Live session stats modal
+function showLiveSessionStats() {
+  const s = S();
+  const completed = s.completedInnings;
+  if (completed.length === 0) { alert('No completed innings yet'); return; }
+  
+  // Aggregate batting
+  const bat = {};
+  for (const inn of completed) {
+    [ {name: inn.b1Name, b: inn.b1}, {name: inn.b2Name, b: inn.b2} ].forEach(function(item) {
+      if (!bat[item.name]) bat[item.name] = {runs:0, bf:0, dots:0, fours:0, sixes:0, threes:0, bonus:0, dismissals:0};
+      const b = bat[item.name];
+      b.runs += (item.b.grossRuns !== undefined ? item.b.grossRuns : item.b.runs);
+      b.bf += item.b.bf;
+      b.dots += item.b.dotBalls || 0;
+      b.fours += item.b.fours;
+      b.sixes += item.b.sixes;
+      b.threes += item.b.threes || 0;
+      b.bonus += item.b.bonusRuns || 0;
+    });
+    for (const h of inn.history || []) {
+      if (h.type === 'wicket') {
+        const nm = h.b === 1 ? inn.b1Name : inn.b2Name;
+        if (bat[nm]) bat[nm].dismissals++;
+      }
+    }
+  }
+  
+  // Aggregate bowling
+  const bowl = {};
+  for (const inn of completed) {
+    for (const h of inn.history || []) {
+      if (!h.bowler) continue;
+      if (!bowl[h.bowler]) bowl[h.bowler] = {balls:0, runs:0, wkts:0, wides:0, noballs:0, dots:0};
+      if (h.type === 'wide') { bowl[h.bowler].wides++; continue; }
+      if (h.type === 'noball') { bowl[h.bowler].noballs++; continue; }
+      bowl[h.bowler].balls++;
+      if (h.type === 'wicket' && h.mode !== 'Run Out') bowl[h.bowler].wkts++;
+      const conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
+      if (conceded > 0) bowl[h.bowler].runs += conceded;
+      if ((h.type === 'run' && h.runs === 0) || h.type === 'wicket') bowl[h.bowler].dots++;
+    }
+  }
+  
+  let bHtml = '';
+  Object.keys(bat).sort().forEach(function(name) {
+    const b = bat[name];
+    const sr = b.bf > 0 ? ((b.runs / b.bf) * 100).toFixed(0) : '-';
+    bHtml += '<tr><td style="font-weight:600;padding:3px 6px">' + name + '</td>'
+      + '<td style="padding:3px 6px;text-align:center">' + b.runs + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--dim)">' + b.bf + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--dim)">' + b.dots + '</td>'
+      + '<td style="padding:3px 6px;text-align:center">' + b.fours + '</td>'
+      + '<td style="padding:3px 6px;text-align:center">' + b.sixes + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--amber)">' + (b.threes || '') + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--orange)">' + (b.bonus || '') + '</td>'
+      + '<td style="padding:3px 6px;text-align:center">' + sr + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--red)">' + (b.dismissals || '') + '</td></tr>';
+  });
+  
+  let bowlHtml = '';
+  Object.keys(bowl).forEach(function(name) {
+    const bw = bowl[name];
+    const ovs = Math.floor((bw.balls || 0) / 6) + '.' + ((bw.balls || 0) % 6);
+    const econ = bw.balls > 0 ? (bw.runs / (bw.balls / 6)).toFixed(2) : '-';
+    bowlHtml += '<tr><td style="font-weight:600;padding:3px 6px">' + name + '</td>'
+      + '<td style="padding:3px 6px;text-align:center">' + ovs + '</td>'
+      + '<td style="padding:3px 6px;text-align:center">' + (bw.runs || 0) + '</td>'
+      + '<td style="padding:3px 6px;text-align:center">' + (bw.wkts || 0) + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--dim)">' + (bw.wides || 0) + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--dim)">' + (bw.noballs || 0) + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--dim)">' + (bw.dots || 0) + '</td>'
+      + '<td style="padding:3px 6px;text-align:center;color:var(--dim)">' + econ + '</td></tr>';
+  });
+  
+  const tRuns = completed.reduce(function(s, inn) { return s + (inn.total || 0); }, 0);
+  const tWkts = completed.reduce(function(s, inn) { return s + (inn.wkts || 0); }, 0);
+  
+  closeAllModals();
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = '<div class="modal" style="max-width:500px;max-height:85vh">'
+    + '<h3>Session Stats <span style="font-size:12px;color:var(--dim)">(' + completed.length + '/' + s.pairs.length + ' pairs)</span></h3>'
+    + '<div style="display:flex;gap:12px;margin-bottom:10px;justify-content:center">'
+    + '<div style="text-align:center"><span style="font-size:20px;font-weight:800;color:var(--orange)">' + tRuns + '</span><br><span style="font-size:10px;color:var(--dim)">Runs</span></div>'
+    + '<div style="text-align:center"><span style="font-size:20px;font-weight:800;color:var(--red)">' + tWkts + '</span><br><span style="font-size:10px;color:var(--dim)">Wickets</span></div>'
+    + '</div>'
+    + '<div style="font-size:11px;color:var(--orange);font-weight:700;margin-bottom:4px">Batting</div>'
+    + '<div style="overflow-x:auto;margin-bottom:8px"><table style="font-size:10px;width:100%;border-collapse:collapse">'
+    + '<tr style="color:var(--dim);border-bottom:1px solid var(--border)"><th style="padding:3px 6px;text-align:left">Player</th><th style="padding:3px 6px">R</th><th style="padding:3px 6px">B</th><th style="padding:3px 6px">Dots</th><th style="padding:3px 6px">4s</th><th style="padding:3px 6px">6s</th><th style="padding:3px 6px">3s</th><th style="padding:3px 6px">Bn</th><th style="padding:3px 6px">SR</th><th style="padding:3px 6px">D</th></tr>'
+    + bHtml + '</table></div>'
+    + (bowlHtml ? '<div style="font-size:11px;color:var(--orange);font-weight:700;margin-bottom:4px">Bowling</div>'
+      + '<div style="overflow-x:auto;margin-bottom:8px"><table style="font-size:10px;width:100%;border-collapse:collapse">'
+      + '<tr style="color:var(--dim);border-bottom:1px solid var(--border)"><th style="padding:3px 6px;text-align:left">Bowler</th><th style="padding:3px 6px">O</th><th style="padding:3px 6px">R</th><th style="padding:3px 6px">W</th><th style="padding:3px 6px">Wd</th><th style="padding:3px 6px">NB</th><th style="padding:3px 6px">Dots</th><th style="padding:3px 6px">Econ</th></tr>'
+      + bowlHtml + '</table></div>' : '')
+    + '<div class="modal-actions"><button class="btn btn-orange" onclick="closeAllModals()" style="flex:1">Close</button></div></div>';
+  document.body.appendChild(m);
+}
 
 // UNDO
 function undo() {
@@ -1105,8 +1383,6 @@ function undo() {
 
 function nextPair() {
   saveInnings();
-  S().currentPairIdx = (S().currentPairIdx || 0) + 1;
-  if (S().currentPairIdx >= S().pairs.length) { S().view = 'summary'; render(); return; }
   S().view = 'pairselect';
   closeAllModals();
   render();
@@ -1172,8 +1448,8 @@ function renderSummary() {
     let grossTotal = 0;
     for (const h of hist) { if (h.runs > 0) grossTotal += h.runs; }
     const penaltyTotal = grossTotal - inn.total;
-    const totalExtras = (extras.byes || 0) + (extras.legByes || 0) + (extras.wides || 0) + (extras.noBalls || 0);
-
+    const totalExtras = (extras.byes || 0) + (extras.legByes || 0) + (extras.wides || 0) + (extras.noBalls || 0) + (extras.penalty || 0);
+ 
     // --- Build per-pair HTML ---
     let phtml = '';
     const penStr = penaltyTotal > 0 ? ', pen -' + penaltyTotal : '';
@@ -1197,7 +1473,7 @@ function renderSummary() {
       const name = i === 0 ? inn.b1Name : inn.b2Name;
       const hOut = i === 0 ? howOut1 : howOut2;
       const sr = b.bf > 0 ? ((b.runs / b.bf) * 100).toFixed(0) : '-';
-      const howOut = hOut.length > 0 ? hOut.join(', ') : (b.legalBf >= 18 ? 'retired' : 'not out');
+      const howOut = hOut.length > 0 ? hOut.join(', ') : (b.legalBf >= S().maxBallsPerBatter ? 'retired' : 'not out');
       const bgSt = i % 2 === 1 ? 'background:rgba(255,255,255,0.02);' : '';
       phtml += '<tr style="' + bgSt + '">'
         + '<td style="padding:1px 4px"><strong>' + name + '</strong></td>'
@@ -1212,7 +1488,7 @@ function renderSummary() {
         + '<td style="padding:1px 4px;color:#8b8fa3;font-size:10px">' + howOut + '</td></tr>';
     });
     phtml += '</table>';
-
+ 
     // Bowling table per pair
     const bowlerNames = Object.keys(bowlerStats);
     if (bowlerNames.length > 0) {
@@ -1243,6 +1519,7 @@ function renderSummary() {
     if (extras.legByes) extParts.push('LB ' + extras.legByes);
     if (extras.wides) extParts.push('Wd ' + extras.wides);
     if (extras.noBalls) extParts.push('NB ' + extras.noBalls);
+    if (extras.penalty) extParts.push('Pen ' + extras.penalty);
     if (totalExtras > 0) {
       phtml += '<div style="font-size:11px;color:var(--amber);margin-top:4px">Extras: <span style="color:var(--text);font-weight:600">' + totalExtras + '</span> <span style="color:var(--dim)">(' + extParts.join(', ') + ')</span></div>';
     }
@@ -1383,7 +1660,7 @@ function renderSummary() {
 
   // Total extras
   let tExt = 0;
-  for (const inn of innings) tExt += (inn.extras?.wides || 0) + (inn.extras?.noBalls || 0) + (inn.extras?.byes || 0) + (inn.extras?.legByes || 0);
+  for (const inn of innings) tExt += (inn.extras?.wides || 0) + (inn.extras?.noBalls || 0) + (inn.extras?.byes || 0) + (inn.extras?.legByes || 0) + (inn.extras?.penalty || 0);
 
   // Assemble full page
   document.getElementById('app').innerHTML = logoHTML()
@@ -1561,6 +1838,8 @@ function viewSavedSession(date, idx) {
 // Session Viewer (rich display)
 // ============================
 function renderSessionView(session, date, idx) {
+  // Store for print/export
+  window._printingSessionData = { _date: date, _idx: idx, session: session };
   const innings = session.innings || [];
   const pairs = session.pairs || [];
   let tRuns = 0, tWkts = 0;
@@ -1640,7 +1919,7 @@ function renderSessionView(session, date, idx) {
       const name = i === 0 ? inn.b1Name : inn.b2Name;
       const hOut = i === 0 ? howOut1 : howOut2;
       const sr = b.bf > 0 ? ((b.runs / b.bf) * 100).toFixed(0) : '-';
-      const howOut = hOut.length > 0 ? hOut.join(', ') : (b.legalBf >= 18 ? 'retired' : 'not out');
+      const howOut = hOut.length > 0 ? hOut.join(', ') : (b.legalBf >= S().maxBallsPerBatter ? 'retired' : 'not out');
       const bgSt = i % 2 === 1 ? 'background:rgba(255,255,255,0.02);' : '';
       phtml += '<tr style="' + bgSt + '">'
         + '<td style="padding:1px 4px"><strong>' + name + '</strong></td>'
@@ -1684,6 +1963,7 @@ function renderSessionView(session, date, idx) {
     if (extras.legByes) extParts.push('LB ' + extras.legByes);
     if (extras.wides) extParts.push('Wd ' + extras.wides);
     if (extras.noBalls) extParts.push('NB ' + extras.noBalls);
+    if (extras.penalty) extParts.push('Pen ' + extras.penalty);
     if (totalExtras > 0) {
       phtml += '<div style="font-size:11px;color:#8b8fa3;margin-top:4px">Extras: ' + totalExtras + ' (' + extParts.join(', ') + ')</div>';
     }
@@ -1819,7 +2099,7 @@ function renderSessionView(session, date, idx) {
   }
 
   let tExt = 0;
-  for (const inn of innings) tExt += (inn.extras?.wides || 0) + (inn.extras?.noBalls || 0) + (inn.extras?.byes || 0) + (inn.extras?.legByes || 0);
+  for (const inn of innings) tExt += (inn.extras?.wides || 0) + (inn.extras?.noBalls || 0) + (inn.extras?.byes || 0) + (inn.extras?.legByes || 0) + (inn.extras?.penalty || 0);
 
   const time = session.savedAt ? new Date(session.savedAt).toLocaleString() : '';
 
@@ -1845,102 +2125,14 @@ function renderSessionView(session, date, idx) {
 // Export / Print
 // ============================
 
-/** Export a saved session as a standalone HTML download */
+/** Export a saved session as a standalone landscape HTML download with per-pair pages */
 function exportSessionHTML(date, idx) {
   try {
     const all = JSON.parse(localStorage.getItem(STORAGE_SESSIONS) || '{}');
     const session = all[date] && all[date][idx];
     if (!session) { alert('Session not found'); return; }
 
-    // Render to a temporary element to capture the HTML
-    const tmp = document.createElement('div');
-    tmp.style.display = 'none';
-    document.body.appendChild(tmp);
-
-    // We rebuild the stats using the same aggregation as viewSavedSession
-    const innings = session.innings || [];
-    const pairs = session.pairs || [];
-
-    // Aggregate batting
-    const batStats = {};
-    innings.forEach(function(inn) {
-      [ { name: inn.b1Name, b: inn.b1 }, { name: inn.b2Name, b: inn.b2 } ].forEach(function(item) {
-        if (!batStats[item.name]) batStats[item.name] =
-          { runs: 0, bf: 0, fours: 0, sixes: 0, threes: 0, dotBalls: 0, bonusRuns: 0 };
-        const bs = batStats[item.name];
-        bs.runs += (item.b.grossRuns !== undefined ? item.b.grossRuns : item.b.runs);
-        bs.bf += item.b.bf;
-        bs.fours += item.b.fours;
-        bs.sixes += item.b.sixes;
-        bs.threes += item.b.threes || 0;
-        bs.dotBalls += item.b.dotBalls || 0;
-        bs.bonusRuns += item.b.bonusRuns || 0;
-      });
-    });
-
-    let batRows = '';
-    Object.keys(batStats).sort().forEach(function(name) {
-      const bs = batStats[name];
-      const sr = bs.bf > 0 ? ((bs.runs / bs.bf) * 100).toFixed(0) : '-';
-      batRows += '<tr><td>' + name + '</td><td>' + bs.runs + '</td><td>' + bs.bf + '</td>'
-        + '<td>' + bs.dotBalls + '</td><td>' + bs.fours + '</td><td>' + bs.sixes + '</td><td>' + (bs.threes || '') + '</td>'
-        + '<td>' + (bs.bonusRuns || '') + '</td><td>' + sr + '</td></tr>';
-    });
-
-    // Aggregate bowling
-    const bowlStats = {};
-    innings.forEach(function(inn) {
-      (inn.history || []).forEach(function(h) {
-        if (!h.bowler) return;
-        if (!bowlStats[h.bowler]) bowlStats[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
-        if (h.type === 'wide') { bowlStats[h.bowler].wides++; return; }
-        if (h.type === 'noball') { bowlStats[h.bowler].noballs++; return; }
-        bowlStats[h.bowler].balls++;
-        if (h.type === 'wicket' && h.mode !== 'Run Out') bowlStats[h.bowler].wkts++;
-        const conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
-        if (conceded > 0) bowlStats[h.bowler].runs += conceded;
-        if ((h.type === 'run' && h.runs === 0) || h.type === 'wicket') bowlStats[h.bowler].dots++;
-      });
-    });
-
-    let bowlRows = '';
-    Object.keys(bowlStats).forEach(function(name) {
-      const bs = bowlStats[name];
-      const ovs = Math.floor((bs.balls || 0) / 6) + '.' + ((bs.balls || 0) % 6);
-      const econ = bs.balls > 0 ? (bs.runs / (bs.balls / 6)).toFixed(2) : '-';
-      bowlRows += '<tr><td>' + name + '</td><td>' + ovs + '</td><td>' + (bs.runs || 0) + '</td>'
-        + '<td>' + (bs.wkts || 0) + '</td><td>' + (bs.wides || 0) + '</td><td>' + (bs.noballs || 0) + '</td>'
-        + '<td>' + (bs.dots || 0) + '</td><td>' + econ + '</td></tr>';
-    });
-
-    const tRuns = innings.reduce(function(s, inn) { return s + (inn.total || 0); }, 0);
-    const tWkts = innings.reduce(function(s, inn) { return s + (inn.wkts || 0); }, 0);
-
-    const html = '<!DOCTYPE html><html><head><meta charset="UTF-8">'
-      + '<title>The CREASE - Session ' + date + '</title>'
-      + '<style>'
-      + 'body{font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#fff;color:#1a1a2e;padding:20px;max-width:900px;margin:0 auto}'
-      + 'h1{font-size:22px;margin-bottom:4px}'
-      + '.sub{font-size:12px;color:#666;margin-bottom:16px}'
-      + 'table{width:100%;border-collapse:collapse;margin-bottom:20px;font-size:12px}'
-      + 'th{background:#f0f0f5;padding:6px 8px;text-align:left;border-bottom:2px solid #ddd;font-size:10px;text-transform:uppercase;color:#666}'
-      + 'td{padding:5px 8px;border-bottom:1px solid #eee}'
-      + '.name{font-weight:700}'
-      + '.totals{display:flex;gap:20px;margin:12px 0 20px;font-size:14px}'
-      + '.totals span{font-weight:800;color:#1a1a2e}'
-      + '.totals .label{font-size:10px;color:#666;display:block}'
-      + '.logo{text-align:center;margin-bottom:12px}'
-      + '.logo img{height:36px}'
-      + '</style></head><body>'
-      + '<div class="logo"><img src="crease_logo.png" alt="The CREASE"></div>'
-      + '<h1>The CREASE \u2014 Session Report</h1>'
-      + '<div class="sub">' + date + ' \u00b7 ' + pairs.length + ' pairs \u00b7 ' + tRuns + '/' + tWkts + ' runs/wkts</div>'
-      + '<div class="totals"><div><span>' + tRuns + '</span><span class="label">Runs</span></div><div><span>' + tWkts + '</span><span class="label">Wickets</span></div></div>'
-      + '<table><tr><th>Batter</th><th>R</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>SR</th></tr>'
-      + batRows + '</table>'
-      + (bowlRows ? '<table><tr><th>Bowler</th><th>O</th><th>R</th><th>W</th><th>Wd</th><th>NB</th><th>Dots</th><th>Econ</th></tr>' + bowlRows + '</table>' : '')
-      + '<div style="font-size:10px;color:#999;margin-top:20px;text-align:center">Generated by The CREASE \u2014 ' + new Date().toLocaleString() + '</div>'
-      + '</body></html>';
+    const html = generateLandscapeReportHTML(session, date, idx);
 
     // Trigger download
     const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -1950,13 +2142,272 @@ function exportSessionHTML(date, idx) {
     a.download = 'crease-session-' + date + '-' + (idx + 1) + '.html';
     a.click();
     URL.revokeObjectURL(url);
-    document.body.removeChild(tmp);
   } catch(e) { alert('Export error: ' + e.message); }
 }
 
-/** Trigger browser print dialog (user can Save as PDF) */
+/** Trigger browser print dialog (user can Save as PDF) — uses landscape layout */
 function printSessionView() {
-  window.print();
+  const sd = window._printingSessionData;
+  if (!sd || !sd.session) { window.print(); return; }
+  try {
+    const html = generateLandscapeReportHTML(sd.session, sd._date || 'session', sd._idx || 0);
+    const w = window.open('', '_blank', 'width=900,height=600');
+    if (!w) { alert('Pop-up blocked. Please allow pop-ups for this site.'); return; }
+    w.document.write(html);
+    w.document.close();
+    w.focus();
+    setTimeout(function() { w.print(); }, 500);
+  } catch(e) {
+    console.error(e);
+    window.print();
+  }
+}
+
+function generateLandscapeReportHTML(session, date, idx) {
+  // Shared function to build landscape HTML — reused by export and print
+  const innings = session.innings || [];
+  const pairs = session.pairs || [];
+
+  // Aggregate session batting
+  const batStats = {};
+  innings.forEach(function(inn) {
+    [ { name: inn.b1Name, b: inn.b1 }, { name: inn.b2Name, b: inn.b2 } ].forEach(function(item) {
+      if (!batStats[item.name]) batStats[item.name] =
+        { runs: 0, bf: 0, fours: 0, sixes: 0, threes: 0, dotBalls: 0, bonusRuns: 0, dismissals: 0, penaltyRuns: 0, howOuts: [] };
+      const bs = batStats[item.name];
+      bs.runs += (item.b.grossRuns !== undefined ? item.b.grossRuns : item.b.runs);
+      bs.bf += item.b.bf;
+      bs.fours += item.b.fours;
+      bs.sixes += item.b.sixes;
+      bs.threes += item.b.threes || 0;
+      bs.dotBalls += item.b.dotBalls || 0;
+      bs.bonusRuns += item.b.bonusRuns || 0;
+    });
+  });
+  innings.forEach(function(inn) {
+    (inn.history || []).forEach(function(h) {
+      if (h.type === 'wicket') {
+        const nm = h.b === 1 ? inn.b1Name : inn.b2Name;
+        if (batStats[nm]) {
+          batStats[nm].dismissals++;
+          let hs = '';
+          switch (h.mode) {
+            case 'Bowled': hs = 'b ' + h.bowler; break;
+            case 'LBW': hs = 'lbw b ' + h.bowler; break;
+            case 'Caught': hs = 'c ' + (h.fielder || '?') + ' b ' + h.bowler; break;
+            case 'Stumped': hs = 'st ' + (h.fielder || '?') + ' b ' + h.bowler; break;
+            case 'Run Out': hs = 'run out (' + (h.fielder || '?') + ')'; break;
+            case 'Hit Wicket': hs = 'hit wkt b ' + h.bowler; break;
+            default: hs = h.mode;
+          }
+          batStats[nm].howOuts.push(hs);
+        }
+      }
+    });
+  });
+
+  const bowlStats = {};
+  innings.forEach(function(inn) {
+    (inn.history || []).forEach(function(h) {
+      if (!h.bowler) return;
+      if (!bowlStats[h.bowler]) bowlStats[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
+      if (h.type === 'wide') { bowlStats[h.bowler].wides++; return; }
+      if (h.type === 'noball') { bowlStats[h.bowler].noballs++; return; }
+      bowlStats[h.bowler].balls++;
+      if (h.type === 'wicket' && h.mode !== 'Run Out') bowlStats[h.bowler].wkts++;
+      const conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
+      if (conceded > 0) bowlStats[h.bowler].runs += conceded;
+      if ((h.type === 'run' && h.runs === 0) || h.type === 'wicket') bowlStats[h.bowler].dots++;
+    });
+  });
+
+  const tRuns = innings.reduce(function(s, inn) { return s + (inn.total || 0); }, 0);
+  const tWkts = innings.reduce(function(s, inn) { return s + (inn.wkts || 0); }, 0);
+
+  let batRows = '';
+  Object.keys(batStats).sort().forEach(function(name) {
+    const bs = batStats[name];
+    const sr = bs.bf > 0 ? ((bs.runs / bs.bf) * 100).toFixed(0) : '-';
+    const dis = bs.dismissals > 0 ? bs.dismissals : (bs.bf > 0 ? '0' : '');
+    batRows += '<tr><td class="name">' + name + '</td><td>' + bs.runs + '</td><td>' + bs.bf + '</td>'
+      + '<td>' + bs.dotBalls + '</td><td>' + bs.fours + '</td><td>' + bs.sixes + '</td><td>' + (bs.threes || '') + '</td>'
+      + '<td>' + (bs.bonusRuns || '') + '</td><td>' + sr + '</td><td>' + dis + '</td></tr>';
+  });
+
+  let bowlRows = '';
+  Object.keys(bowlStats).forEach(function(name) {
+    const bs = bowlStats[name];
+    const ovs = Math.floor((bs.balls || 0) / 6) + '.' + ((bs.balls || 0) % 6);
+    const econ = bs.balls > 0 ? (bs.runs / (bs.balls / 6)).toFixed(2) : '-';
+    bowlRows += '<tr><td class="name">' + name + '</td><td>' + ovs + '</td><td>' + (bs.runs || 0) + '</td>'
+      + '<td>' + (bs.wkts || 0) + '</td><td>' + (bs.wides || 0) + '</td><td>' + (bs.noballs || 0) + '</td>'
+      + '<td>' + (bs.dots || 0) + '</td><td>' + econ + '</td></tr>';
+  });
+
+  // Per-pair pages
+  let pairPages = '';
+  for (const inn of innings) {
+    const hist = inn.history || [];
+    const extras = inn.extras || {};
+    let howOut1 = [], howOut2 = [];
+    let bowlerStatsP = {}, fieldStatsP = {};
+    for (const h of hist) {
+      if (h.bowler) {
+        if (!bowlerStatsP[h.bowler]) bowlerStatsP[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
+        if (h.type === 'wide') { bowlerStatsP[h.bowler].wides++; continue; }
+        if (h.type === 'noball') { bowlerStatsP[h.bowler].noballs++; continue; }
+        bowlerStatsP[h.bowler].balls++;
+        if (h.type === 'wicket' && h.mode !== 'Run Out') bowlerStatsP[h.bowler].wkts++;
+        const conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
+        if (conceded > 0) bowlerStatsP[h.bowler].runs += conceded;
+        if ((h.type === 'run' && h.runs === 0) || h.type === 'wicket') bowlerStatsP[h.bowler].dots++;
+      }
+      if (h.type === 'wicket') {
+        let hs = '';
+        const penAmt = -h.runs;
+        switch (h.mode) {
+          case 'Bowled': hs = 'b ' + h.bowler; break;
+          case 'LBW': hs = 'lbw b ' + h.bowler; break;
+          case 'Hit Wicket': hs = 'hit wkt b ' + h.bowler; break;
+          case 'Caught': hs = 'c ' + (h.fielder || '?') + ' b ' + h.bowler; break;
+          case 'Stumped': hs = 'st ' + (h.fielder || '?') + ' b ' + h.bowler; break;
+          case 'Run Out': hs = 'run out (' + (h.fielder || '?') + ')'; break;
+          default: hs = h.mode;
+        }
+        if (penAmt > 0) hs += ' (-' + penAmt + ' pen)';
+        if (h.b === 1) howOut1.push(hs); else howOut2.push(hs);
+        if (h.fielder) {
+          if (!fieldStatsP[h.fielder]) fieldStatsP[h.fielder] = { catches: 0, runOuts: 0, stumpings: 0 };
+          if (h.mode === 'Caught') fieldStatsP[h.fielder].catches++;
+          else if (h.mode === 'Run Out') fieldStatsP[h.fielder].runOuts++;
+          else if (h.mode === 'Stumped') fieldStatsP[h.fielder].stumpings++;
+        }
+      }
+    }
+
+    let grossTotal = 0;
+    for (const h of hist) { if (h.runs > 0) grossTotal += h.runs; }
+    const penaltyTotal = grossTotal - inn.total;
+    const totalExtras = (extras.byes || 0) + (extras.legByes || 0) + (extras.wides || 0) + (extras.noBalls || 0) + (extras.penalty || 0);
+    const penStr = penaltyTotal > 0 ? ', pen -' + penaltyTotal : '';
+
+    let pBat = '';
+    const pBatters = [
+      { name: inn.b1Name, b: inn.b1, howOut: howOut1 },
+      { name: inn.b2Name, b: inn.b2, howOut: howOut2 }
+    ];
+    for (const bd of pBatters) {
+      const b = bd.b;
+      const sr = b.bf > 0 ? ((b.runs / b.bf) * 100).toFixed(0) : '-';
+      const howOut = bd.howOut.length > 0 ? bd.howOut.join(', ') : (b.legalBf >= 18 ? 'retired' : 'not out');
+      pBat += '<tr><td class="name">' + bd.name + '</td><td>' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</td>'
+        + '<td>' + b.bf + '</td><td>' + (b.dotBalls || 0) + '</td><td>' + b.fours + '</td><td>' + b.sixes + '</td>'
+        + '<td>' + (b.threes || 0) + '</td><td>' + (b.bonusRuns || 0) + '</td><td>' + sr + '</td>'
+        + '<td style="font-size:9px;color:#666">' + howOut + '</td></tr>';
+    }
+
+    let pBowl = '';
+    Object.keys(bowlerStatsP).forEach(function(bnm) {
+      const bs = bowlerStatsP[bnm];
+      const ovs = Math.floor((bs.balls || 0) / 6) + '.' + ((bs.balls || 0) % 6);
+      pBowl += '<tr><td class="name">' + bnm + '</td><td>' + ovs + '</td><td>' + (bs.runs || 0) + '</td>'
+        + '<td>' + (bs.wkts || 0) + '</td><td>' + (bs.wides || 0) + '</td><td>' + (bs.noballs || 0) + '</td>'
+        + '<td>' + (bs.dots || 0) + '</td></tr>';
+    });
+
+    const extPartsP = [];
+    if (extras.byes) extPartsP.push('Bye ' + extras.byes);
+    if (extras.legByes) extPartsP.push('LB ' + extras.legByes);
+    if (extras.wides) extPartsP.push('Wd ' + extras.wides);
+    if (extras.noBalls) extPartsP.push('NB ' + extras.noBalls);
+    if (extras.penalty) extPartsP.push('Pen ' + extras.penalty);
+
+    let bbb = '';
+    for (const h of hist) {
+      let txt = '';
+      const nm = h.b === 1 ? inn.b1Name : inn.b2Name;
+      if (h.type === 'wicket') txt = nm + ' ' + h.mode + (h.fielder ? ' c ' + h.fielder : '');
+      else if (h.type === 'wide') txt = 'Wide' + (h.runs > 1 ? ' +' + (h.runs-1) : '');
+      else if (h.type === 'noball') txt = 'NB ' + h.runs + 'r';
+      else if (h.type === 'bye') txt = h.runs + ' bye' + (h.runs > 1 ? 's' : '');
+      else if (h.type === 'legbye') txt = h.runs + ' leg bye' + (h.runs > 1 ? 's' : '');
+      else if (h.type === 'penalty') txt = 'Penalty +' + h.runs;
+      else if (h.type === 'bonus') txt = '+1 bonus ' + (h.bonusBatter || nm);
+      else txt = nm + ' ' + h.runs;
+      bbb += '<span class="bbb-item">' + h.over + '.' + h.ballNum + ' ' + txt + ' (' + h.runningTotal + ')</span>';
+    }
+
+    let fieldLine = '';
+    const fn = Object.keys(fieldStatsP);
+    if (fn.length > 0) {
+      const fparts = [];
+      fn.forEach(function(fnm) {
+        const fs = fieldStatsP[fnm];
+        const f = [];
+        if (fs.catches) f.push(fs.catches + ' ct');
+        if (fs.runOuts) f.push(fs.runOuts + ' ro');
+        if (fs.stumpings) f.push(fs.stumpings + ' st');
+        fparts.push(fnm + ' (' + f.join(', ') + ')');
+      });
+      fieldLine = '<p><strong>Fielding:</strong> ' + fparts.join(', ') + '</p>';
+    }
+
+    pairPages += '<div class="pair-page">'
+      + '<div class="pair-header">'
+      + '<div class="pair-title">Pair ' + inn.pairNo + ': ' + inn.b1Name + ' &amp; ' + inn.b2Name + '</div>'
+      + '<div class="pair-score">' + inn.total + '/' + inn.wkts + ' <span class="dim">(' + inn.over + '.' + inn.legalBalls + ' ov</span>' + (penStr ? ' <span class="dim">' + penStr + '</span>' : '') + ')</div>'
+      + '</div>'
+      + '<h3>Batting</h3>'
+      + '<table><tr><th>Batter</th><th>R</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>SR</th><th>How Out</th></tr>'
+      + pBat + '</table>'
+      + (pBowl ? '<h3>Bowling</h3><table><tr><th>Bowler</th><th>O</th><th>R</th><th>W</th><th>Wd</th><th>NB</th><th>Dots</th></tr>' + pBowl + '</table>' : '')
+      + (totalExtras > 0 ? '<p><strong>Extras:</strong> ' + totalExtras + ' (' + extPartsP.join(', ') + ')</p>' : '')
+      + fieldLine
+      + '<h3>Ball-by-Ball</h3><div class="bbb">' + (bbb || '<span class="dim">No balls recorded</span>') + '</div>'
+      + '</div>';
+  }
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8">'
+    + '<title>The CREASE - Session ' + date + '</title>'
+    + '<style>'
+    + '@page { size: landscape; margin: 15mm; }'
+    + 'body{font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#fff;color:#1a1a2e;margin:0;padding:20px}'
+    + 'h1{font-size:24px;margin-bottom:2px;color:#E64D0F}'
+    + 'h2{font-size:18px;color:#E64D0F;border-bottom:2px solid #E64D0F;padding-bottom:4px;margin-top:0}'
+    + 'h3{font-size:13px;color:#333;margin:8px 0 4px}'
+    + '.sub{font-size:12px;color:#666;margin-bottom:12px}'
+    + '.dim{color:#999}'
+    + 'table{width:100%;border-collapse:collapse;margin-bottom:12px;font-size:11px}'
+    + 'th{background:#f5f5f5;padding:4px 6px;text-align:left;border-bottom:2px solid #ddd;font-size:9px;text-transform:uppercase;color:#666}'
+    + 'td{padding:3px 6px;border-bottom:1px solid #eee}'
+    + '.name{font-weight:700}'
+    + '.totals{display:flex;gap:24px;margin:8px 0 16px}'
+    + '.totals .num{font-size:28px;font-weight:800;color:#1a1a2e}'
+    + '.totals .label{font-size:10px;color:#999;display:block}'
+    + '.logo{text-align:center;margin-bottom:8px}'
+    + '.logo img{height:40px}'
+    + '.pair-page{page-break-before:always;padding-top:10px}'
+    + '.pair-page:first-of-type{page-break-before:avoid}'
+    + '.pair-header{background:#fafafa;padding:10px 14px;border-radius:8px;margin-bottom:10px;border-left:4px solid #E64D0F}'
+    + '.pair-title{font-size:16px;font-weight:700}'
+    + '.pair-score{font-size:20px;font-weight:800;color:#E64D0F}'
+    + '.bbb{font-size:10px;color:#555;line-height:1.6;display:flex;flex-wrap:wrap;gap:3px}'
+    + '.bbb-item{background:#f5f5f5;padding:2px 6px;border-radius:3px;white-space:nowrap}'
+    + '@media print{body{padding:0}.pair-page{page-break-before:always}}'
+    + '</style></head><body>'
+    + '<div class="logo"><img src="crease_logo.png" alt="The CREASE"></div>'
+    + '<h1>The CREASE \u2014 Session Report</h1>'
+    + '<div class="sub">' + date + ' \u00b7 ' + pairs.length + ' pairs \u00b7 ' + innings.length + ' innings \u00b7 ' + tRuns + '/' + tWkts + ' runs/wkts</div>'
+    + '<div class="totals"><div><span class="num">' + tRuns + '</span><span class="label">Total Runs</span></div>'
+    + '<div><span class="num">' + tWkts + '</span><span class="label">Wickets</span></div>'
+    + '<div><span class="num">' + pairs.length + '</span><span class="label">Pairs</span></div></div>'
+    + '<h2>Session Batting</h2>'
+    + '<table><tr><th>Batter</th><th>R</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>SR</th><th>Dismissals</th></tr>'
+    + batRows + '</table>'
+    + (bowlRows ? '<h2>Session Bowling</h2><table><tr><th>Bowler</th><th>O</th><th>R</th><th>W</th><th>Wd</th><th>NB</th><th>Dots</th><th>Econ</th></tr>' + bowlRows + '</table>' : '')
+    + pairPages
+    + '<div style="text-align:center;font-size:10px;color:#999;margin-top:20px;page-break-before:avoid">Generated by The CREASE \u2014 ' + new Date().toLocaleString() + '</div>'
+    + '</body></html>';
 }
 
 // ============================
