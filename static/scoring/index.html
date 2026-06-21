@@ -331,6 +331,34 @@ function closeAllModals() {
   document.querySelectorAll('.modal-overlay').forEach(m => m.remove());
 }
 
+// DOM-based dialog helpers (work in WebView without WebChromeClient)
+function showAlert(msg) {
+  closeAllModals();
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = '<div class="modal" style="text-align:center;max-width:320px"><p style="margin:12px 0">'
+    + msg + '</p><div class="modal-actions"><button class="btn btn-orange" onclick="closeAllModals()" style="flex:1">OK</button></div></div>';
+  document.body.appendChild(m);
+}
+
+function showConfirm(msg, onYes) {
+  closeAllModals();
+  const m = document.createElement('div');
+  m.className = 'modal-overlay';
+  m.innerHTML = '<div class="modal" style="text-align:center;max-width:320px"><p style="margin:12px 0">'
+    + msg + '</p><div class="modal-actions">'
+    + '<button class="btn btn-dark" onclick="closeAllModals()" style="flex:1">No</button>'
+    + '<button class="btn btn-orange" id="confirm-yes" onclick="closeAllModals()" style="flex:1">Yes</button></div></div>';
+  document.body.appendChild(m);
+  document.getElementById('confirm-yes').addEventListener('click', onYes);
+}
+
+function goToScorecard() {
+  S().view = 'scorecard';
+  closeAllModals();
+  render();
+}
+
 // RENDER
 function render() {
   const v = S().view;
@@ -566,7 +594,8 @@ function renderMatch() {
       + '</div>';
   };
 
-  const overEvents = inn.history.filter(h => h.over === inn.over);
+  // Over tracker: bonus/penalty entries are associated with previous ball, skip them
+  const overEvents = inn.history.filter(h => h.over === inn.over && h.type !== 'bonus' && h.type !== 'penalty');
   const dots = [];
   let legalCount = 0;
   for (const ev of overEvents) {
@@ -982,7 +1011,7 @@ function penaltyRuns() {
     });
     render();
   };
-  showPickModal('Penalty runs?', [5, 10, 2, 3, 4]);
+  showPickModal('Penalty runs?', [1, 2, 3, 4]);
 }
 
 function wicket() {
@@ -1673,8 +1702,9 @@ function renderSummary() {
     + '<div><span style="font-size:22px;font-weight:800;color:var(--dim)">' + tExt + '</span><br><span style="font-size:10px;color:var(--dim)">Extras</span></div></div></div>'
     + pairHtml
     + sessHtml
+    + '<button class="btn btn-dark btn-block" onclick="goToScorecard()" style="margin-bottom:6px">Back to Scorecard</button>'
     + '<button class="btn btn-orange btn-block" onclick="saveSession()">Save Session &amp; New</button>'
-    + '<button class="btn btn-dark btn-block" onclick="if(confirm(\'Discard all completed innings and start over?\')) resetApp()" style="margin-top:6px">Discard &amp; New</button></div>';
+    + '<button class="btn btn-dark btn-block" onclick="showConfirm(\'Discard all completed innings and start over?\', resetApp)" style="margin-top:6px">Discard &amp; New</button></div>';
 }
 
 function saveSession() {

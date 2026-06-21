@@ -1,6 +1,7 @@
 package com.crease.scoring;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -116,6 +117,32 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             webView.setLayerType(View.LAYER_TYPE_HARDWARE, null);
         }
+
+        // Handle JavaScript dialogs (alert, confirm) so buttons work in the app
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("the CREASE")
+                    .setMessage(message)
+                    .setPositiveButton("OK", (d, w) -> result.confirm())
+                    .setCancelable(false)
+                    .show();
+                return true;
+            }
+
+            @Override
+            public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("the CREASE")
+                    .setMessage(message)
+                    .setPositiveButton("Yes", (d, w) -> result.confirm())
+                    .setNegativeButton("No", (d, w) -> result.cancel())
+                    .setCancelable(false)
+                    .show();
+                return true;
+            }
+        });
 
         // Disable long-press context menu
         webView.setOnLongClickListener(new View.OnLongClickListener() {
