@@ -8,12 +8,12 @@
         <div class="hero rounded-3 p-3 p-md-4 mb-3"
              style="background: linear-gradient(135deg, #0A0A0A 0%, #111111 50%, #1A0A00 100%);">
             <div class="d-flex align-items-center mb-2">
-                <h1 class="h2 mb-0" style="color: #E55000;">
+                <h1 class="h2 mb-0" style="color: #E64D0F;">
                     the CREASE
                 </h1>
             </div>
             <p class="mb-0" style="color: #999999;">
-                AI-powered cricket batting analysis — <em style="color: #C0C0C0;">where every cricketer gets better.</em>
+                AI-powered cricket batting analysis — <em style="color: #C2C2C2;">where every cricketer gets better.</em>
                 Upload a video, get professional-grade biomechanics, ball tracking,
                 bat swing analysis, and personalised coaching insights.
             </p>
@@ -26,7 +26,7 @@
     <div class="col-6 col-md-3">
         <div class="card border-0 text-center p-3 h-100" style="background: #141414;">
             <div class="card-body p-2">
-                <h2 class="mb-0" style="color: #E55000;">{{ stats.total_sessions }}</h2>
+                <h2 class="mb-0" style="color: #E64D0F;">{{ stats.total_sessions }}</h2>
                 <small style="color: #888888;">Sessions</small>
             </div>
         </div>
@@ -34,7 +34,7 @@
     <div class="col-6 col-md-3">
         <div class="card border-0 text-center p-3 h-100" style="background: #141414;">
             <div class="card-body p-2">
-                <h2 class="mb-0" style="color: #E55000;">{{ stats.total_shots }}</h2>
+                <h2 class="mb-0" style="color: #E64D0F;">{{ stats.total_shots }}</h2>
                 <small style="color: #888888;">Shots Analysed</small>
             </div>
         </div>
@@ -42,7 +42,7 @@
     <div class="col-6 col-md-3">
         <div class="card border-0 text-center p-3 h-100" style="background: #141414;">
             <div class="card-body p-2">
-                <h2 class="mb-0" style="color: #E55000;">{{ "%.0f"|format(stats.total_duration) }}s</h2>
+                <h2 class="mb-0" style="color: #E64D0F;">{{ "%.0f"|format(stats.total_duration) }}s</h2>
                 <small style="color: #888888;">Video Processed</small>
             </div>
         </div>
@@ -50,8 +50,8 @@
     <div class="col-6 col-md-3">
         <div class="card border-0 text-center p-3 h-100" style="background: #141414;">
             <div class="card-body p-2">
-                <h2 class="mb-0" style="color: #E55000;">
-                    <a href="{{ url_for('upload') }}" style="color: #E55000; text-decoration: none;">
+                <h2 class="mb-0" style="color: #E64D0F;">
+                    <a href="{{ url_for('upload') }}" style="color: #E64D0F; text-decoration: none;">
                         <i class="bi bi-plus-circle"></i>
                     </a>
                 </h2>
@@ -66,7 +66,7 @@
     <div class="col-md-6">
         <div class="card border-0 h-100" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-body p-3 p-md-4">
-                <h5 style="color: #E55000;"><i class="bi bi-camera-video"></i> New Analysis</h5>
+                <h5 style="color: #E64D0F;"><i class="bi bi-camera-video"></i> New Analysis</h5>
                 <p style="color: #999999;">Record a batting session (side-on off side view recommended), upload the video, and get full biomechanical analysis.</p>
                 <a href="{{ url_for('upload') }}" class="btn btn-sm btn-crease">
                     <i class="bi bi-cloud-upload"></i> Upload & Analyse
@@ -80,7 +80,7 @@
     <div class="col-md-6">
         <div class="card border-0 h-100" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-body p-3 p-md-4">
-                <h5 style="color: #E55000;"><i class="bi bi-bar-chart-line"></i> Track Progress</h5>
+                <h5 style="color: #E64D0F;"><i class="bi bi-bar-chart-line"></i> Track Progress</h5>
                 <p style="color: #999999;">Compare multiple sessions side-by-side to see improvement in knee bend, head stability, and batting shape.</p>
                 <a href="{{ url_for('sessions_list') }}" class="btn btn-sm btn-outline-crease">
                     <i class="bi bi-collection"></i> Browse Sessions
@@ -96,7 +96,7 @@
         <div class="card border-0" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-header d-flex justify-content-between align-items-center"
                  style="background: transparent; border-bottom: 1px solid #2A2A2A;">
-                <h5 class="mb-0" style="color: #E55000;">
+                <h5 class="mb-0" style="color: #E64D0F;">
                     <i class="bi bi-clock-history"></i> Recent Sessions
                 </h5>
                 <a href="{{ url_for('sessions_list') }}" class="btn btn-sm btn-outline-crease">
@@ -121,7 +121,7 @@
                             {% for s in sessions[:8] %}
                             <tr>
                                 <td>
-                                    <i class="bi bi-film" style="color: #E55000;"></i>
+                                    <i class="bi bi-film" style="color: #E64D0F;"></i>
                                     <small>{{ s.video_name[:25] }}{% if s.video_name|length > 25 %}...{% endif %}</small>
                                 </td>
                                 <td><small>{{ s.date[:10] if s.date else '-' }}</small></td>

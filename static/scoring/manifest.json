@@ -6,7 +6,7 @@
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#0d1117",
-  "theme_color": "#ff6b35",
+  "theme_color": "#E64D0F",
   "categories": ["sports", "utilities"],
   "icons": [
     {

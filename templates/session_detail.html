@@ -9,7 +9,7 @@
             <ol class="breadcrumb mb-1 small" style="background: transparent;">
                 <li class="breadcrumb-item"><a href="{{ url_for('index') }}" style="color: #888888;">Dashboard</a></li>
                 <li class="breadcrumb-item"><a href="{{ url_for('sessions_list') }}" style="color: #888888;">Sessions</a></li>
-                <li class="breadcrumb-item active" style="color: #E55000;">{{ session.session_id[:8] }}</li>
+                <li class="breadcrumb-item active" style="color: #E64D0F;">{{ session.session_id[:8] }}</li>
             </ol>
         </nav>
     </div>
@@ -21,7 +21,7 @@
         <div class="card border-0" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-body p-3">
                 <div class="d-flex flex-wrap justify-content-between align-items-center">
-                    <h5 class="mb-2" style="color: #E55000;">
+                    <h5 class="mb-2" style="color: #E64D0F;">
                         <i class="bi bi-film"></i> Session Analysis
                     </h5>
                     <div class="d-flex gap-2">
@@ -95,7 +95,7 @@
         <!-- Charts -->
         <div class="card border-0 mt-3" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-header" style="background: transparent; border-bottom: 1px solid #2A2A2A;">
-                <h6 class="mb-0" style="color: #E55000;"><i class="bi bi-bar-chart"></i> Charts</h6>
+                <h6 class="mb-0" style="color: #E64D0F;"><i class="bi bi-bar-chart"></i> Charts</h6>
             </div>
             <div class="card-body p-3">
                 {% if session.charts.knee_angles %}
@@ -119,25 +119,25 @@
         <!-- Metrics -->
         <div class="card border-0 mb-3" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-header" style="background: transparent; border-bottom: 1px solid #2A2A2A;">
-                <h6 class="mb-0" style="color: #E55000;"><i class="bi bi-graph-up"></i> Key Metrics</h6>
+                <h6 class="mb-0" style="color: #E64D0F;"><i class="bi bi-graph-up"></i> Key Metrics</h6>
             </div>
             <div class="card-body p-3">
                 {% set s = session.session_summary %}
                 <table class="table table-sm table-dark mb-0" style="background: transparent;">
                     <tbody>
-                        <tr><td>Front Knee</td><td class="text-end fw-bold" style="color: #E55000;">{{ "%.1f°"|format(s.avg_front_knee_angle) if s.avg_front_knee_angle else '-' }}</td></tr>
-                        <tr><td>Back Knee</td><td class="text-end fw-bold" style="color: #E55000;">{{ "%.1f°"|format(s.avg_back_knee_angle) if s.avg_back_knee_angle else '-' }}</td></tr>
-                        <tr><td>Front Elbow</td><td class="text-end fw-bold" style="color: #E55000;">{{ "%.1f°"|format(s.avg_front_elbow_angle) if s.avg_front_elbow_angle else '-' }}</td></tr>
-                        <tr><td>Spine Lean</td><td class="text-end fw-bold" style="color: #E55000;">{{ "%.1f°"|format(s.avg_spine_angle) if s.avg_spine_angle else '-' }}</td></tr>
-                        <tr><td>Head Stability</td><td class="text-end fw-bold" style="color: #E55000;">{{ "%.1f/100"|format(s.head_stability_score) if s.head_stability_score else '-' }}</td></tr>
-                        <tr><td>Stance Width</td><td class="text-end fw-bold" style="color: #E55000;">{{ "%.0f"|format(s.avg_stance_width) if s.avg_stance_width else '-' }} px</td></tr>
+                        <tr><td>Front Knee</td><td class="text-end fw-bold" style="color: #E64D0F;">{{ "%.1f°"|format(s.avg_front_knee_angle) if s.avg_front_knee_angle else '-' }}</td></tr>
+                        <tr><td>Back Knee</td><td class="text-end fw-bold" style="color: #E64D0F;">{{ "%.1f°"|format(s.avg_back_knee_angle) if s.avg_back_knee_angle else '-' }}</td></tr>
+                        <tr><td>Front Elbow</td><td class="text-end fw-bold" style="color: #E64D0F;">{{ "%.1f°"|format(s.avg_front_elbow_angle) if s.avg_front_elbow_angle else '-' }}</td></tr>
+                        <tr><td>Spine Lean</td><td class="text-end fw-bold" style="color: #E64D0F;">{{ "%.1f°"|format(s.avg_spine_angle) if s.avg_spine_angle else '-' }}</td></tr>
+                        <tr><td>Head Stability</td><td class="text-end fw-bold" style="color: #E64D0F;">{{ "%.1f/100"|format(s.head_stability_score) if s.head_stability_score else '-' }}</td></tr>
+                        <tr><td>Stance Width</td><td class="text-end fw-bold" style="color: #E64D0F;">{{ "%.0f"|format(s.avg_stance_width) if s.avg_stance_width else '-' }} px</td></tr>
                     </tbody>
                 </table>
                 {% if session.ball_speed.estimated %}
                     <hr style="border-color: #2A2A2A;">
                     <small style="color: #999999;">Ball Speed:
                         {% if session.ball_speed.speed_kmh %}
-                            <span style="color: #E55000;">{{ "%.1f"|format(session.ball_speed.speed_kmh) }} km/h</span>
+                            <span style="color: #E64D0F;">{{ "%.1f"|format(session.ball_speed.speed_kmh) }} km/h</span>
                         {% endif %}
                     </small>
                 {% endif %}
@@ -148,13 +148,13 @@
         {% if session.coaching_tips %}
         <div class="card border-0 mb-3" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-header" style="background: transparent; border-bottom: 1px solid #2A2A2A;">
-                <h6 class="mb-0" style="color: #E55000;"><i class="bi bi-chat-quote"></i> Coaching Tips</h6>
+                <h6 class="mb-0" style="color: #E64D0F;"><i class="bi bi-chat-quote"></i> Coaching Tips</h6>
             </div>
             <div class="card-body p-3">
                 {% for tip in session.coaching_tips %}
                 <div class="alert py-2 mb-2 small border-0"
                      style="background: {% if tip.severity == 'high' %}#3A1A1A; color: #E53935;
-                            {% elif tip.severity == 'medium' %}#2A1A0A; color: #E55000;
+                            {% elif tip.severity == 'medium' %}#2A1A0A; color: #E64D0F;
                             {% elif tip.severity == 'low' %}#0A1A2A; color: #888888;
                             {% else %}#141414; color: #999999;{% endif %}">
                     <strong>{{ tip.observation }}</strong>
@@ -174,7 +174,7 @@
     <div class="col-12">
         <div class="card border-0" style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-header" style="background: transparent; border-bottom: 1px solid #2A2A2A;">
-                <h6 class="mb-0" style="color: #E55000;">
+                <h6 class="mb-0" style="color: #E64D0F;">
                     <i class="bi bi-list-check"></i> Shots Detected ({{ session.num_shots_detected }})
                 </h6>
             </div>
@@ -194,7 +194,7 @@
                         <tbody>
                             {% for shot in session.shot_summary %}
                             <tr>
-                                <td style="color: #E55000;">{{ shot.shot_number }}</td>
+                                <td style="color: #E64D0F;">{{ shot.shot_number }}</td>
                                 <td>{{ shot.start_frame }}–{{ shot.end_frame }}</td>
                                 <td>{{ "%.2f"|format(shot.duration_sec) }}s</td>
                                 <td>
@@ -206,7 +206,7 @@
                                     {% if shot.has_impact %}
                                     <span class="badge" style="background: #4CAF50;">Yes</span>
                                     {% else %}
-                                    <span class="badge" style="background: #E55000;">Partial</span>
+                                    <span class="badge" style="background: #E64D0F;">Partial</span>
                                     {% endif %}
                                 </td>
                             </tr>

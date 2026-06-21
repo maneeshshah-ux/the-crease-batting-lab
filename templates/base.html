@@ -36,38 +36,38 @@
             </a>
             <button class="navbar-toggler border-0" type="button" data-bs-toggle="collapse"
                     data-bs-target="#navbarNav" aria-label="Toggle navigation"
-                    style="color: #E55000;">
+                    style="color: #E64D0F;">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
                         <a class="nav-link px-3" href="{{ url_for('index') }}"
-                           style="color: #C0C0C0;">
+                           style="color: #C2C2C2;">
                             <i class="bi bi-house-door"></i> Dashboard
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link px-3" href="{{ url_for('upload') }}"
-                           style="color: #C0C0C0;">
+                           style="color: #C2C2C2;">
                             <i class="bi bi-cloud-upload"></i> Analyse
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link px-3" href="{{ url_for('camera_guide') }}"
-                           style="color: #C0C0C0;">
+                           style="color: #C2C2C2;">
                             <i class="bi bi-camera"></i> Camera Setup
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link px-3" href="{{ url_for('sessions_list') }}"
-                           style="color: #C0C0C0;">
+                           style="color: #C2C2C2;">
                             <i class="bi bi-collection"></i> Sessions
                         </a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link px-3" href="{{ url_for('compare_view') }}"
-                           style="color: #C0C0C0;">
+                           style="color: #C2C2C2;">
                             <i class="bi bi-bar-chart-line"></i> Compare
                         </a>
                     </li>
@@ -82,7 +82,7 @@
             <div class="container-fluid mt-2 px-3">
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category if category != 'error' else 'danger' }} alert-dismissible fade show py-2"
-                         style="background: #1A1A1A; border: 1px solid #E55000; color: #C0C0C0;">
+                         style="background: #1A1A1A; border: 1px solid #E64D0F; color: #C2C2C2;">
                         <small>{{ message }}</small>
                         <button type="button" class="btn-close py-2" style="filter: invert(0.8);" data-bs-dismiss="alert"></button>
                     </div>
@@ -94,9 +94,9 @@
     <!-- PWA Install Banner (hidden on desktop) -->
     <div id="pwa-install-banner" class="d-none d-md-none" style="display:none;">
         <div class="alert text-center mb-0 rounded-0 py-2 small"
-             style="background: #1A1A1A; border-bottom: 2px solid #E55000; color: #C0C0C0;">
+             style="background: #1A1A1A; border-bottom: 2px solid #E64D0F; color: #C2C2C2;">
             <i class="bi bi-phone"></i>
-            Install <strong style="color: #E55000;">the CREASE</strong> on your phone:
+            Install <strong style="color: #E64D0F;">the CREASE</strong> on your phone:
             Chrome menu → <strong>"Add to Home Screen"</strong>
             <button type="button" class="btn-close py-2 float-end" onclick="dismissPWA()"
                     style="filter: invert(0.8);"></button>
@@ -112,7 +112,7 @@
     <footer class="footer py-3 mt-4" style="background: #0A0A0A; border-top: 1px solid #2A2A2A;">
         <div class="container-fluid text-center">
             <small style="color: #888888;">
-                <a href="https://the-crease-batting-lab.onrender.com" style="color: #E55000; text-decoration: none;">
+                <a href="https://the-crease-batting-lab.onrender.com" style="color: #E64D0F; text-decoration: none;">
                     <strong>the CREASE</strong>
                 </a>
                 <span class="mx-1" style="color: #444;">|</span>

@@ -1,7 +1,7 @@
 /*
  * the CREASE Batting Lab — Brand Styles
- * Brand colours: CREASE Orange #E55000 · Pitch Black #0A0A0A
- *                Crease Silver #C0C0C0 · Off White #F7F7F5
+ * Brand colours: CREASE Orange #E64D0F · Pitch Black #0A0A0A
+ *                Crease Silver #C2C2C2 · Off White #F7F7F5
  * Usage: 60% Black · 25% Off White · 10% Orange · 5% Silver
  * Brand: the CREASE
  * Tagline: Where every cricketer gets better.
@@ -11,12 +11,12 @@
    BRAND VARIABLES
    ============================================================ */
 :root {
-    --crease-orange:    #E55000;
+    --crease-orange:    #E64D0F;
     --crease-orange-hover: #CC4700;
     --pitch-black:      #0A0A0A;
     --pitch-black-card: #141414;
     --pitch-black-raised: #1A1A1A;
-    --crease-silver:    #C0C0C0;
+    --crease-silver:    #C2C2C2;
     --crease-silver-dim: #888888;
     --off-white:        #F7F7F5;
     --off-white-dim:    #D0D0CC;

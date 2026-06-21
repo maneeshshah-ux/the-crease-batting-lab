@@ -2,14 +2,14 @@
   <!-- Background -->
   <rect width="512" height="512" rx="80" fill="#0A0A0A"/>
   <!-- CREASE Orange accent line -->
-  <rect x="80" y="100" width="352" height="12" rx="6" fill="#E55000"/>
+  <rect x="80" y="100" width="352" height="12" rx="6" fill="#E64D0F"/>
   <!-- "the" text -->
   <text x="256" y="210" text-anchor="middle" font-family="Georgia, serif" font-weight="400"
-        font-size="48" fill="#C0C0C0" letter-spacing="6">the</text>
+        font-size="48" fill="#C2C2C2" letter-spacing="6">the</text>
   <!-- "CREASE" text -->
   <text x="256" y="290" text-anchor="middle" font-family="Georgia, serif" font-weight="800"
-        font-size="80" fill="#E55000" letter-spacing="4">CREASE</text>
+        font-size="80" fill="#E64D0F" letter-spacing="4">CREASE</text>
   <!-- Brand removed -->
   <!-- Bottom accent bar -->
-  <rect x="80" y="380" width="352" height="4" rx="2" fill="#E55000"/>
+  <rect x="80" y="380" width="352" height="4" rx="2" fill="#E64D0F"/>
 </svg>
