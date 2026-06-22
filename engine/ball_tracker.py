@@ -238,7 +238,7 @@ class BallTracker:
             if dist < 20:
                 best_conf = max(best_conf, (color_conf + motion_conf) * 0.8)
 
-        if best_pos and best_conf > 0.3:
+        if best_pos and best_conf > 0.6:
             # Apply Kalman filter
             if self.use_kalman and self.kalman:
                 kalman_pred = self.kalman.predict()

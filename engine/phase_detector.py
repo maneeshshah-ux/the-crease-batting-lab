@@ -11,6 +11,8 @@ Phases detected:
 7. RECOVERY  — Batter returns to balanced position
 
 Uses velocity profiles, joint angle changes, and hand/foot positions.
+The phase detectors are intentionally liberal (1-frame threshold crossing).
+Shot boundary detection is conservative (minimum duration + gap filtering).
 """
 
 import numpy as np
@@ -37,7 +39,15 @@ class PhaseDetector:
     - Horizontal velocity of front foot (stride detection)
     - Distance between hands and body (impact proximity)
     - Vertical velocity of bat tip
+
+    Phase detection is liberal (any threshold crossing is labeled).
+    Shot boundary detection is conservative (min duration + gap filtering).
     """
+
+    # Minimum shot duration (~0.5s at 30fps, ~0.3s at 60fps)
+    MIN_SHOT_FRAMES = 15
+    # Minimum gap between separate shots
+    MIN_GAP_FRAMES = 15
 
     def __init__(self, batting_hand="right", fps=30):
         self.batting_hand = batting_hand
@@ -218,6 +228,9 @@ class PhaseDetector:
         """
         Detect backlift — hands moving upward.
         In image coords, upward = negative y velocity.
+
+        Liberal: any frame with hand_vel < threshold is labeled BACKLIFT.
+        Stays in backlift during pause at top (|vel| < |threshold| * 0.5).
         """
         in_backlift = False
         for i in range(len(phases)):
@@ -229,14 +242,17 @@ class PhaseDetector:
                 phases[i] = BattingPhase.BACKLIFT
                 in_backlift = True
             elif in_backlift and abs(hand_vel[i]) < abs(threshold) * 0.5:
-                # Still in backlift during pause at top
+                # Still in backlift during pause at top (|vel| < 1.5)
                 phases[i] = BattingPhase.BACKLIFT
             else:
                 in_backlift = False
         return phases
 
     def _detect_stride(self, phases, foot_vel, threshold=5):
-        """Detect stride — front foot moving forward (positive x velocity)."""
+        """
+        Detect stride — front foot moving forward (positive x velocity).
+        Liberal: any frame with foot_vel > threshold is labeled STRIDE.
+        """
         in_stride = False
         for i in range(len(phases)):
             if foot_vel[i] > threshold and phases[i] in (BattingPhase.UNKNOWN, BattingPhase.BACKLIFT):
@@ -249,7 +265,10 @@ class PhaseDetector:
         return phases
 
     def _detect_downswing(self, phases, hand_vel, bat_tip_vel, threshold=5):
-        """Detect downswing — hands moving downward rapidly (positive y velocity)."""
+        """
+        Detect downswing — hands moving downward rapidly (positive y velocity).
+        Liberal: any frame with hand_vel > threshold (after backlift/stride) is labeled DOWNSWING.
+        """
         in_downswing = False
         for i in range(len(phases)):
             if phases[i] in (BattingPhase.BACKLIFT, BattingPhase.STRIDE):
@@ -277,20 +296,30 @@ class PhaseDetector:
                         phases[i + 1] = BattingPhase.IMPACT
         return phases
 
-    def _detect_follow_through(self, phases, hand_vel):
-        """Detect follow-through — hands continue after impact."""
+    def _detect_follow_through(self, phases, hand_vel, max_follow_frames=30):
+        """
+        Detect follow-through — hands continue after impact.
+        Limited to max_follow_frames after impact to prevent runaway labeling.
+        """
         after_impact = False
+        follow_count = 0
         for i in range(len(phases)):
             if phases[i] == BattingPhase.IMPACT:
                 after_impact = True
+                follow_count = 0
             elif after_impact and phases[i] == BattingPhase.UNKNOWN:
-                phases[i] = BattingPhase.FOLLOW_THROUGH
-                if abs(hand_vel[i]) < 2:
-                    after_impact = False  # movement settled
+                follow_count += 1
+                if follow_count > max_follow_frames:
+                    after_impact = False
+                    follow_count = 0
+                else:
+                    phases[i] = BattingPhase.FOLLOW_THROUGH
+                    if abs(hand_vel[i]) < 2:
+                        after_impact = False  # movement settled
         return phases
 
     def _detect_recovery(self, phases, hand_vel, foot_vel, threshold=2):
-        """Detect recovery — all movement settles."""
+        """Detect recovery — all movement settles (scans backward from end)."""
         settled_frames = 0
         for i in range(len(phases) - 1, -1, -1):
             if phases[i] in (BattingPhase.UNKNOWN, BattingPhase.FOLLOW_THROUGH):
@@ -303,10 +332,22 @@ class PhaseDetector:
         return phases
 
     def _detect_shot_boundaries(self, phases):
-        """Group contiguous phase regions into individual shots."""
+        """
+        Group contiguous phase regions into individual shots.
+
+        Strategy:
+        - Find all contiguous regions of shot-related phases
+        - Merge regions that are closer than MIN_GAP_FRAMES apart
+        - Discard regions shorter than MIN_SHOT_FRAMES
+
+        This conservative approach filters out noise (brief threshold crossings)
+        while preserving real shots (sustained phase regions).
+        """
         if not phases:
             return
 
+        # Step 1: Identify all contiguous shot-phase regions
+        raw_shots = []
         current_shot = []
         in_shot = False
 
@@ -317,25 +358,44 @@ class PhaseDetector:
         for i, p in enumerate(phases):
             if p in shot_phases:
                 if not in_shot:
+                    # Save previous shot region when starting new one
                     if current_shot:
-                        self.shot_events.append(current_shot)
+                        raw_shots.append(current_shot)
                     current_shot = []
                     in_shot = True
                 current_shot.append((i, p.value))
             else:
-                if in_shot and p == BattingPhase.RECOVERY:
-                    current_shot.append((i, p.value))
-                    self.shot_events.append(current_shot)
-                    current_shot = []
+                if in_shot:
                     in_shot = False
-                elif in_shot:
-                    in_shot = False
-                    if len(current_shot) > 3:
-                        self.shot_events.append(current_shot)
+                    if current_shot:
+                        raw_shots.append(current_shot)
                     current_shot = []
 
+        # Save last region if video ends mid-shot
         if current_shot:
-            self.shot_events.append(current_shot)
+            raw_shots.append(current_shot)
+
+        # Step 2: Merge close regions and filter short ones
+        if not raw_shots:
+            return
+
+        filtered = [raw_shots[0]]
+
+        for shot in raw_shots[1:]:
+            gap = shot[0][0] - filtered[-1][-1][0]
+            if gap < self.MIN_GAP_FRAMES:
+                # Merge: extend the previous shot with gap frames
+                merged = filtered[-1]
+                for g in range(filtered[-1][-1][0] + 1, shot[0][0]):
+                    merged.append((g, "transition"))
+                merged.extend(shot)
+            else:
+                # Gap sufficient — keep separate
+                filtered.append(shot)
+
+        # Step 3: Apply minimum duration filter
+        self.shot_events = [s for s in filtered
+                            if len(s) >= self.MIN_SHOT_FRAMES]
 
     def get_shot_count(self):
         """Get number of detected shots."""
@@ -345,7 +405,7 @@ class PhaseDetector:
         """Get summary of each detected shot."""
         summaries = []
         for i, shot in enumerate(self.shot_events):
-            phases_in_shot = set(p for _, p in shot)
+            phases_in_shot = set(p for _, p in shot if p != "transition")
             start_frame = shot[0][0]
             end_frame = shot[-1][0]
             duration_frames = end_frame - start_frame + 1

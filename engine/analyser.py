@@ -49,6 +49,7 @@ class BattingAnalyser:
         self.phase_detector = PhaseDetector(batting_hand=batting_hand, fps=fps or 30)
         self.metrics = MetricsCalculator(batting_hand=batting_hand, fps=fps or 30)
         self.visualizer = Visualizer(batting_hand=batting_hand)
+        self.calibration_px_per_m = None  # set after analysis loop
 
     def analyse_video(self, video_path, output_dir=None, generate_video=True,
                       progress_callback=None):
@@ -87,7 +88,7 @@ class BattingAnalyser:
         # Output video writer
         if generate_video:
             output_video_path = os.path.join(output_dir, f"analysis_{session_id}.mp4")
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            fourcc = cv2.VideoWriter_fourcc(*'avc1')  # H.264 — 5-10x smaller than mp4v
             out_writer = cv2.VideoWriter(output_video_path, fourcc,
                                          max(1, video_fps), (w, h))
         else:
@@ -121,8 +122,12 @@ class BattingAnalyser:
             if progress_callback and frame_idx % 30 == 0:
                 progress_callback(frame_idx, total_frames, "Processing")
 
-            # 1. Pose estimation
-            pose_result = self.pose_estimator.process_frame(frame)
+            # 1. Pose estimation (with wicketkeeper filtering)
+            pose_result = self.pose_estimator.process_frame(frame, prefer_batter=True)
+
+            # Skip analysis if detected person is likely not the batter
+            if pose_result["success"] and not pose_result.get("is_batter", True):
+                pose_result["success"] = False
 
             # 2. Ball tracking
             ball_result = self.ball_tracker.track(frame, frame_idx)
@@ -182,53 +187,87 @@ class BattingAnalyser:
             if bat_result.get("bat_speed_px", 0) > 0:
                 bat_speed_history.append(bat_result["bat_speed_px"])
 
-            # 6. Render output video
+            # 6. Render output video (clean cricketing overlays)
             if out_writer:
-                # Draw overlays
                 display = frame.copy()
-
-                # Phase color overlay
                 current_phase = self.phase_detector.get_phase_at_frame(frame_idx)
-                if current_phase != BattingPhase.UNKNOWN.value:
-                    display = self.visualizer.draw_phase_overlay(
-                        display, current_phase, alpha=0.15
-                    )
-                    display = self.visualizer.draw_phase_text(display, current_phase, w)
 
-                # Pose skeleton
+                # --- Phase bar at top (replaces old colored border) ---
+                display = self.visualizer.draw_phase_bar(display, current_phase)
+
+                # --- Head stability indicator (traffic light) ---
+                nose_lm = None
                 if pose_result["success"]:
-                    display = self.pose_estimator.draw_landmarks(display, pose_result)
+                    nose_lm = pose_result["landmarks"].get("NOSE", {})
+                head_x = nose_lm.get("pixel_x") if nose_lm else None
+                head_y = nose_lm.get("pixel_y") if nose_lm else None
+                head_mvmt = fm.get("head_movement", 0) if fm else 0
 
-                # Ball trajectory
-                if ball_trajectory:
-                    display = self.visualizer.draw_ball_trajectory(
-                        display, ball_trajectory[-50:], color=(0, 255, 255)
-                    )
-                if ball_result["detected"]:
-                    cv2.circle(display, (ball_result["x"], ball_result["y"]),
-                               ball_result.get("radius", 5) or 5,
-                               (0, 255, 255), -1)
+                display = self.visualizer.draw_head_indicator(
+                    display, head_mvmt, head_x, head_y
+                )
 
-                # Bat swing
+                # --- Balance — spirit level ---
+                spine_angle = fm.get("spine_angle", None)
+                front_knee = fm.get("front_knee_angle", None)
+                display = self.visualizer.draw_balance_level(
+                    display, spine_angle, front_knee
+                )
+
+                # --- Ball trajectory — REMOVED (user feedback: distracting) ---
+
+                # --- Bat swing path (very subtle arc) ---
                 if swing_path_history:
                     clean_path = [p for p in swing_path_history if p]
                     if clean_path:
-                        display = self.visualizer.draw_swing_path(display, clean_path[-30:])
+                        display = self.visualizer.draw_swing_path(
+                            display, clean_path[-30:], phase=current_phase
+                        )
 
-                # Bat line
+                # --- Bat line (subtle — only when swinging) ---
                 if bat_result.get("has_swing_data"):
                     display = self.visualizer.draw_bat_line(display, bat_result)
 
-                # Metric HUD
-                display = self.visualizer.draw_metric_hud(display, {
-                    **frame_metrics,
-                    "phase": current_phase,
-                })
+                # --- Bat speed — speedometer with peak tracking ---
+                bat_spd_px = fm.get("bat_speed_px", 0)
+                # Live km/h: hand speed * lever factor → bat tip speed estimate
+                # Use calibration if available, else a reasonable default (120 px/m)
+                px_per_m_live = (self.calibration_px_per_m or 120.0)
+                lever = self.bat_analyzer.HAND_TO_TIP_FACTOR
+                live_kmh = (bat_spd_px * video_fps / px_per_m_live * 3.6 * lever
+                           if bat_spd_px > 0 else None)
+                # Sanity cap: ignore glitches > 200 km/h bat tip speed
+                if live_kmh and live_kmh > 200:
+                    live_kmh = None
+                if live_kmh and live_kmh > (self.visualizer.session_peak_kmh or 0):
+                    self.visualizer.session_peak_kmh = live_kmh
+                cal_ok = self.calibration_px_per_m is not None
+                display = self.visualizer.draw_speedometer(
+                    display,
+                    speed_kmh=live_kmh,
+                    calibration_available=cal_ok,
+                    peak_session_kmh=self.visualizer.session_peak_kmh,
+                )
 
-                # Frame counter
-                cv2.putText(display, f"Frame {frame_idx}/{total_frames}",
-                            (w - 180, h - 15),
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (200, 200, 200), 1)
+                # --- Bat speed overlay: big text during swings ---
+                if live_kmh and live_kmh > 5:
+                    is_impact = (current_phase == "impact")
+                    display = self.visualizer.draw_bat_speed_overlay(
+                        display, live_kmh, impact_frame=is_impact
+                    )
+
+                # --- Weight transfer — bar (Fox Focus style) ---
+                if pose_result["success"] and pose_result.get("landmarks"):
+                    display = self.visualizer.draw_weight_transfer(
+                        display, pose_result["landmarks"]
+                    )
+
+                # --- Phase legend (top-left, persistent) ---
+                if frame_idx < 10 or frame_idx % 600 == 0:
+                    display = self.visualizer.draw_phase_legend(display)
+
+                # --- Watermark ---
+                display = self.visualizer.draw_watermark(display)
 
                 out_writer.write(display)
 
@@ -259,8 +298,34 @@ class BattingAnalyser:
             session_summary, shot_summary
         )
 
-        # Bat speed estimation
-        bat_speed_kmh = self.bat_analyzer.estimate_bat_speed_kmh(max(1, video_fps))
+        # Auto-calibrate from all collected landmarks
+        all_landmarks = [fd["landmarks"] for fd in self.phase_detector.frame_data]
+        cal_result = self.bat_analyzer.calibrate_from_landmarks(
+            all_landmarks, h, w
+        )
+
+        # Pass calibration to visualizer for real-world units (cm)
+        if cal_result and cal_result.get("px_per_m"):
+            self.calibration_px_per_m = cal_result["px_per_m"]
+            self.visualizer.px_per_cm = cal_result["px_per_m"] / 100.0
+
+        # Bat speed estimation (now calibrated to km/h)
+        # Build full-frame speed array for continuity-based spike filtering
+        if len(all_frame_metrics) > 5:
+            full_speed_array = [m.get("bat_speed_px", 0) for m in all_frame_metrics]
+            bat_speed_kmh = self.bat_analyzer.estimate_bat_speed_kmh(
+                max(1, video_fps),
+                speeds=full_speed_array  # full frame-sequential array
+            )
+        else:
+            bat_speed_kmh = self.bat_analyzer.estimate_bat_speed_kmh(
+                max(1, video_fps)
+            )
+
+        # Log spike info
+        n_outliers = bat_speed_kmh.get("outliers_removed", 0)
+        if n_outliers:
+            print(f"  Filtered {n_outliers} outlier bat speed readings")
 
         # Backlift peak
         backlift_peak = self.bat_analyzer.detect_backlift_peak()
@@ -290,7 +355,7 @@ class BattingAnalyser:
             "session_summary": session_summary,
             "coaching_tips": coaching_tips,
 
-            "bat_speed_kmh_estimate": bat_speed_kmh,
+            "bat_speed": bat_speed_kmh,
             "backlift_peak": backlift_peak,
 
             # Full metrics per frame (sampled for large videos)

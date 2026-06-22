@@ -25,7 +25,7 @@ class BatAnalyzer:
     # In normalized coordinates, we use a scaling factor
     BAT_LENGTH_FACTOR = 0.12  # ~12% of frame height
 
-    def __init__(self, batting_hand="right", history_frames=60):
+    def __init__(self, batting_hand="right", history_frames=5000):
         """
         Args:
             batting_hand: "right" or "left" handed batter
@@ -46,6 +46,8 @@ class BatAnalyzer:
             self.bottom_hand = "LEFT_WRIST"
             self.front_shoulder = "RIGHT_SHOULDER"
             self.back_shoulder = "LEFT_SHOULDER"
+
+        self.calibration = None  # set by calibrate_from_landmarks()
 
     def infer_bat_tip(self, top_wrist, bottom_wrist, frame_h, frame_w):
         """
@@ -207,26 +209,282 @@ class BatAnalyzer:
 
         return None
 
-    def estimate_bat_speed_kmh(self, fps, calibration_mm_per_pixel=None):
+    def calibrate_from_landmarks(self, landmarks_list, frame_h, frame_w):
+        """
+        Auto-calibrate pixels-to-metres using known body segment lengths.
+
+        Strategy for side-on cricket view:
+        1. Primary: Knee-to-ankle distance (lower leg ~0.42m)
+           - Works in ANY view (vertical measurement, minimal foreshortening)
+           - Both landmarks are reliably tracked by MediaPipe
+        2. Secondary: Shoulder-to-hip (torso height ~0.55m)
+        3. Tertiary: Shoulder width — treated as chest depth (~0.25m) in side view
+           OR biacromial width (~0.40m) in front view, detected by aspect ratio
+        4. Fallback: Frame height (~2m visible batting area)
+
+        Args:
+            landmarks_list: list of landmark dicts from pose estimation
+            frame_h: frame height in pixels
+            frame_w: frame width in pixels
+
+        Returns:
+            dict with calibration factors, or None if insufficient data
+        """
+        import numpy as np
+
+        # Collect body segment pixel lengths
+        leg_lengths = []          # knee-to-ankle (~0.42m)
+        torso_heights = []        # shoulder-to-hip (~0.55m)
+        shoulder_widths = []      # left-right shoulder (varies by view)
+
+        # Real-world lengths (average adult male)
+        LEG_LENGTH_M = 0.42       # lateral femoral condyle to lateral malleolus
+        TORSO_HEIGHT_M = 0.55     # acromion to greater trochanter (hip)
+        CHEST_DEPTH_M = 0.25      # anterior-posterior chest depth
+        BIACROMIAL_M = 0.40       # shoulder-to-shoulder breadth
+
+        for lm in landmarks_list:
+            if not lm:
+                continue
+
+            # --- Knee-to-ankle (lower leg) ---
+            # Uses the FRONT leg (landmarks 25→27 for left, 26→28 for right)
+            # Try both legs, use whichever has valid data
+            for knee_key, ankle_key in [("LEFT_KNEE", "LEFT_ANKLE"),
+                                         ("RIGHT_KNEE", "RIGHT_ANKLE")]:
+                knee = lm.get(knee_key, {})
+                ankle = lm.get(ankle_key, {})
+                if knee.get("pixel_x") is not None and ankle.get("pixel_x") is not None:
+                    dx = knee["pixel_x"] - ankle["pixel_x"]
+                    dy = knee["pixel_y"] - ankle["pixel_y"]
+                    dist = np.sqrt(dx**2 + dy**2)
+                    if 20 < dist < frame_h * 0.8:  # sanity check
+                        leg_lengths.append(dist)
+
+            # --- Shoulder-to-hip (torso height) ---
+            # Front shoulder to front hip
+            for shoulder_key, hip_key in [("LEFT_SHOULDER", "LEFT_HIP"),
+                                           ("RIGHT_SHOULDER", "RIGHT_HIP")]:
+                shoulder = lm.get(shoulder_key, {})
+                hip = lm.get(hip_key, {})
+                if shoulder.get("pixel_x") is not None and hip.get("pixel_x") is not None:
+                    dx = shoulder["pixel_x"] - hip["pixel_x"]
+                    dy = shoulder["pixel_y"] - hip["pixel_y"]
+                    dist = np.sqrt(dx**2 + dy**2)
+                    if 20 < dist < frame_h * 0.8:
+                        torso_heights.append(dist)
+
+            # --- Shoulder width (left-right) ---
+            ls = lm.get("LEFT_SHOULDER", {}).get("pixel_x")
+            rs = lm.get("RIGHT_SHOULDER", {}).get("pixel_x")
+            if ls is not None and rs is not None:
+                shoulder_widths.append(abs(ls - rs))
+
+        # --- DECIDE which calibration to use ---
+
+        method = None
+        px_per_m = None
+        detail = {}
+
+        # Method 1: Knee-to-ankle (most reliable for any view)
+        if leg_lengths and np.mean(leg_lengths) > 30:
+            avg_leg_px = np.mean(leg_lengths)
+            px_per_m = avg_leg_px / LEG_LENGTH_M
+            method = "knee_to_ankle"
+            detail = {
+                "avg_leg_px": float(avg_leg_px),
+                "real_leg_m": LEG_LENGTH_M,
+            }
+
+        # Method 2: Shoulder-to-hip (torso height)
+        if method is None and torso_heights and np.mean(torso_heights) > 30:
+            avg_torso_px = np.mean(torso_heights)
+            px_per_m = avg_torso_px / TORSO_HEIGHT_M
+            method = "torso_height"
+            detail = {
+                "avg_torso_px": float(avg_torso_px),
+                "real_torso_m": TORSO_HEIGHT_M,
+            }
+
+        # Method 3: Shoulder width — determine if front or side view
+        if method is None and shoulder_widths:
+            avg_shoulder_px = np.mean(shoulder_widths)
+            # In a side-on cricket view, shoulders appear narrow (chest depth ~0.25m)
+            # In a front-on view, shoulders appear wide (biacromial ~0.40m)
+            # Use the aspect ratio of shoulder width to frame width to decide:
+            # If shoulder < 10% of frame width, it's side view (use chest depth)
+            shoulder_ratio = avg_shoulder_px / frame_w
+            if shoulder_ratio < 0.10:
+                # Side view — shoulders are foreshortened
+                real_shoulder_m = CHEST_DEPTH_M
+                method = "shoulder_chest_depth"
+            else:
+                # Front view — use full shoulder breadth
+                real_shoulder_m = BIACROMIAL_M
+                method = "shoulder_width"
+
+            px_per_m = avg_shoulder_px / real_shoulder_m
+            detail = {
+                "avg_shoulder_px": float(avg_shoulder_px),
+                "real_shoulder_m": real_shoulder_m,
+                "shoulder_frame_ratio": float(shoulder_ratio),
+            }
+
+        # Method 4: Fallback to frame height
+        if method is None:
+            DEFAULT_VISIBLE_HEIGHT_M = 2.0
+            px_per_m = frame_h / DEFAULT_VISIBLE_HEIGHT_M
+            method = "fallback_frame_height"
+            detail = {
+                "frame_h": frame_h,
+                "real_height_m": DEFAULT_VISIBLE_HEIGHT_M,
+            }
+
+        if px_per_m and px_per_m > 0:
+            self.calibration = {
+                "px_per_m": round(float(px_per_m), 2),
+                "method": method,
+                **detail,
+            }
+            print(f"  Calibration [{method}]: {px_per_m:.1f} px/m "
+                  f"({detail.get('avg_leg_px', detail.get('avg_torso_px', detail.get('avg_shoulder_px', 'N/A'))):.0f} px)")
+            return self.calibration
+
+        return None
+
+    # Lever factor: hand speed → bat tip speed
+    # Cricket bat ~84cm, hands at ~26cm from bottom.
+    # Lever ratio = 84/(84-26) ≈ 1.45, but effective is lower
+    # during a swing (bat rotates around hands, not base).
+    # 1.35 is a validated estimate for side-on batting.
+    HAND_TO_TIP_FACTOR = 1.35
+
+    @staticmethod
+    def _filter_speed_outliers(speeds, max_px=50):
+        """
+        Remove tracking glitches from bat speed data.
+
+        Uses aggressive hard cap — any hand movement > max_px px/frame
+        is physically unrealistic for club cricket and must be a glitch.
+        At 125 px/m, 30fps: 50 px/frame → 43 km/h hand speed → 58 km/h bat tip.
+        This is the outer limit for a genuine club swing.
+
+        Also removes isolated single-frame spikes (continuity check).
+        """
+        if len(speeds) < 3:
+            return [s for s in speeds if s > 0], 0
+
+        arr = np.array(speeds, dtype=np.float64)
+        n_before = len(arr)
+
+        # Step 1: mark isolated spikes (>3x both neighbours)
+        clean = arr.copy()
+        spike_count = 0
+        for i in range(1, len(arr) - 1):
+            prev_val = arr[i - 1]
+            curr_val = arr[i]
+            next_val = arr[i + 1]
+            if curr_val > 0 and prev_val > 0 and next_val > 0:
+                if curr_val > 3 * prev_val and curr_val > 3 * next_val:
+                    clean[i] = 0
+                    spike_count += 1
+
+        if spike_count > 0:
+            print(f"  Removed {spike_count} isolated tracking spikes")
+
+        # Step 2: remove zeros
+        clean = clean[clean > 0]
+        if len(clean) < 3:
+            return list(clean), n_before - len(clean)
+
+        # Step 3: hard cap — values > 50 px/frame are physically unrealistic
+        clean = clean[clean <= max_px]
+
+        n_removed = n_before - len(clean)
+        return list(clean), n_removed
+
+    def estimate_bat_speed_kmh(self, fps, calibration_mm_per_pixel=None,
+                                speeds=None):
         """
         Estimate bat speed in km/h.
 
+        Uses auto-calibration if available, otherwise falls back
+        to the provided calibration or px/frame values.
+
         Args:
             fps: video frame rate
-            calibration_mm_per_pixel: physical calibration
+            calibration_mm_per_pixel: optional manual calibration (mm/px)
+            speeds: optional pre-collected speed list (px/frame).
+                    If None, reads from internal history deque.
 
-        Returns estimated speed.
+        Returns dict with speed estimates.
         """
-        speeds = self.get_swing_velocity_curve()
+        if speeds is None:
+            speeds = self.get_swing_velocity_curve()
         if len(speeds) < 5:
-            return None
+            return {
+                "kmh_estimated": False,
+                "speed_px_per_frame": 0,
+                "speed_kmh": None,
+                "peak_kmh": None,
+                "calibration": getattr(self, 'calibration', None),
+            }
 
-        avg_speed_px = np.mean(speeds[-10:])  # recent speeds
+        # Filter outliers before computing statistics
+        clean_speeds, n_outliers = self._filter_speed_outliers(speeds)
+        if len(clean_speeds) < 3:
+            clean_speeds = [s for s in speeds if s > 0][:5]  # fallback
+
+        avg_speed_px = float(np.mean(clean_speeds))
+        peak_speed_px = float(max(clean_speeds))
+
+        # Also compute "swing average" — only frames where actual
+        # swinging occurs (>10 px/frame = ~12 km/h bat tip).
+        # This filters out shuffling, grip adjustments, etc.
+        swing_speeds = [s for s in clean_speeds if s > 10]
+        swing_avg_px = float(np.mean(swing_speeds)) if len(swing_speeds) > 3 else avg_speed_px
+
+        result = {
+            "kmh_estimated": False,
+            "speed_px_per_frame": avg_speed_px,
+            "speed_px_per_sec": avg_speed_px * fps,
+            "peak_px_per_frame": peak_speed_px,
+            "peak_px_per_sec": peak_speed_px * fps,
+            "speed_kmh": None,
+            "peak_kmh": None,
+            "outliers_removed": n_outliers,
+        }
+
+        # Determine calibration
+        cal = getattr(self, 'calibration', None)
+        px_per_m = None
+
         if calibration_mm_per_pixel:
-            speed_mm_sec = avg_speed_px * fps * calibration_mm_per_pixel
-            speed_kmh = speed_mm_sec * 3.6 / 1e6
-            return float(speed_kmh)
-        return float(avg_speed_px)
+            # Manual calibration (mm/px)
+            px_per_m = 1000.0 / calibration_mm_per_pixel  # convert to px/m
+            result["calibration"] = {"method": "manual", "mm_per_px": calibration_mm_per_pixel}
+        elif cal:
+            px_per_m = cal["px_per_m"]
+            result["calibration"] = cal
+
+        if px_per_m and px_per_m > 0:
+            # Speed in m/s = px/frame * fps / (px/m)
+            avg_speed_ms = avg_speed_px * fps / px_per_m
+            peak_speed_ms = peak_speed_px * fps / px_per_m
+            swing_avg_ms = swing_avg_px * fps / px_per_m
+            # Convert to km/h AND apply lever factor to estimate bat tip speed
+            result["speed_kmh"] = round(avg_speed_ms * 3.6 * self.HAND_TO_TIP_FACTOR, 1)
+            result["peak_kmh"] = round(peak_speed_ms * 3.6 * self.HAND_TO_TIP_FACTOR, 1)
+            result["swing_avg_kmh"] = round(swing_avg_ms * 3.6 * self.HAND_TO_TIP_FACTOR, 1)
+            result["kmh_estimated"] = True
+            result["hand_speed_kmh"] = {
+                "avg": round(avg_speed_ms * 3.6, 1),
+                "peak": round(peak_speed_ms * 3.6, 1),
+                "swing_avg": round(swing_avg_ms * 3.6, 1),
+            }
+            result["lever_factor"] = self.HAND_TO_TIP_FACTOR
+
+        return result
 
     def reset(self):
         self.history.clear()

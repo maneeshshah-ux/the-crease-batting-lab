@@ -83,12 +83,14 @@ class PoseEstimator:
             self.mp_drawing = mp.solutions.pose_utils
         self.mp_pose = mp.solutions.pose
 
-    def process_frame(self, frame):
+    def process_frame(self, frame, prefer_batter=True):
         """
         Process a single RGB/BGR frame and return landmarks.
 
         Args:
             frame: BGR image (OpenCV default)
+            prefer_batter: If True, filter detections that look like
+                           wicketkeeper (too high in frame, too small)
 
         Returns:
             dict with:
@@ -96,9 +98,11 @@ class PoseEstimator:
                 - landmark_list: raw mediapipe landmark list
                 - raw: raw mediapipe result
                 - success: bool
+                - is_batter: bool (True if detected person appears to be the batter)
         """
         if frame is None:
-            return {"success": False, "landmarks": {}, "landmark_list": None, "raw": None}
+            return {"success": False, "landmarks": {}, "landmark_list": None,
+                    "raw": None, "is_batter": False}
 
         # Convert BGR to RGB for MediaPipe
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -109,7 +113,8 @@ class PoseEstimator:
         rgb_frame.flags.writeable = True
 
         if not results.pose_landmarks:
-            return {"success": False, "landmarks": {}, "landmark_list": None, "raw": results}
+            return {"success": False, "landmarks": {}, "landmark_list": None,
+                    "raw": results, "is_batter": False}
 
         h, w = frame.shape[:2]
         landmarks = {}
@@ -126,6 +131,29 @@ class PoseEstimator:
                 "pixel_y": int(lm.y * h),
             }
 
+        # Heuristic: check if this looks like a batter (vs wicketkeeper)
+        is_batter = True
+        if prefer_batter:
+            # Batter should have feet near bottom of frame (y > 0.6)
+            # Wicketkeeper stands further back → appears higher (smaller y)
+            foot_y = None
+            for foot_key in ("LEFT_FOOT_INDEX", "RIGHT_FOOT_INDEX",
+                             "LEFT_ANKLE", "RIGHT_ANKLE"):
+                if foot_key in landmarks and landmarks[foot_key]["visibility"] > 0.5:
+                    foot_y = landmarks[foot_key]["y"]
+                    break
+            if foot_y is not None and foot_y < 0.5:
+                # Feet high in frame — likely wicketkeeper or partial detection
+                is_batter = False
+
+            # Additional heuristic: if body is high in frame and looks small
+            # (e.g. visible nose y < 0.3), it's likely a wicketkeeper in the background
+            if is_batter and "NOSE" in landmarks and landmarks["NOSE"]["visibility"] > 0.5:
+                nose_y = landmarks["NOSE"]["y"]
+                if nose_y < 0.15 and foot_y is None:
+                    # Face very high in frame, no feet visible — probably a distant figure
+                    is_batter = False
+
         return {
             "success": True,
             "landmarks": landmarks,
@@ -133,6 +161,7 @@ class PoseEstimator:
             "raw": results,
             "frame_height": h,
             "frame_width": w,
+            "is_batter": is_batter,
         }
 
     def get_landmark_array(self, landmarks_dict):
