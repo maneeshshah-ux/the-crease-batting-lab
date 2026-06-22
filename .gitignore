@@ -11,3 +11,11 @@ frames/
 *.egg-info/
 dist/
 build/
+Batting Videos/
+ffmpeg
+*.mp4
+*.json
+*.idsig
+debug_*.py
+debug_*.py
+scoring app output/
