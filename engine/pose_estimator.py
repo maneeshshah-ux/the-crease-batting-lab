@@ -9,6 +9,32 @@ import cv2
 import numpy as np
 import mediapipe as mp
 
+# ── MediaPipe API compatibility ──────────────────────────────────────────
+# Different MediaPipe versions use different import paths.
+# 0.10.x uses mp.solutions.*, newer versions may use mp.python.solutions.*
+try:
+    _mp_pose = mp.solutions.pose
+    _mp_drawing = mp.solutions.drawing_utils
+    _mp_has_solutions = True
+except AttributeError:
+    # Fallback: try the new-style API
+    try:
+        _mp_pose = mp.tasks.vision.PoseLandmarker
+        _mp_drawing = mp.tasks.vision
+        _mp_has_solutions = False
+    except AttributeError:
+        # Last resort: try mediapipe.python.solutions
+        try:
+            import mediapipe.python.solutions as mp_sol
+            _mp_pose = mp_sol.pose
+            _mp_drawing = mp_sol.drawing_utils
+            _mp_has_solutions = True
+        except (ImportError, AttributeError):
+            raise ImportError(
+                "Could not find MediaPipe Pose API. "
+                "Try: pip install mediapipe==0.10.9"
+            )
+
 # MediaPipe landmark indices relevant to batting analysis
 BATTING_LANDMARKS = {
     # Lower body
@@ -67,21 +93,34 @@ class PoseEstimator:
             model_complexity: 0=lite, 1=full, 2=heavy
             smooth: Temporal smoothing across frames
         """
-        self.pose = mp.solutions.pose.Pose(
-            static_image_mode=static_mode,
-            model_complexity=model_complexity,
-            smooth_landmarks=smooth,
-            enable_segmentation=False,
-            smooth_segmentation=False,
-            min_detection_confidence=min_detection_confidence,
-            min_tracking_confidence=min_tracking_confidence,
-        )
-        # Drawing utilities (mediapipe 0.10.x uses drawing_utils)
-        try:
-            self.mp_drawing = mp.solutions.drawing_utils
-        except AttributeError:
-            self.mp_drawing = mp.solutions.pose_utils
-        self.mp_pose = mp.solutions.pose
+        # Use module-level compatibility references
+        if _mp_has_solutions:
+            self.pose = _mp_pose.Pose(
+                static_image_mode=static_mode,
+                model_complexity=model_complexity,
+                smooth_landmarks=smooth,
+                enable_segmentation=False,
+                smooth_segmentation=False,
+                min_detection_confidence=min_detection_confidence,
+                min_tracking_confidence=min_tracking_confidence,
+            )
+        else:
+            # New-style MediaPipe API (pose_landmarker based)
+            from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions
+            from mediapipe.tasks.python.core.base_options import BaseOptions
+            from mediapipe import model_ckpt_util
+            # Use default model
+            model_path = model_ckpt_util.get_model('pose_landmarker_lite')
+            options = PoseLandmarkerOptions(
+                base_options=BaseOptions(model_asset_path=model_path),
+                running_mode='video',
+                min_pose_detection_confidence=min_detection_confidence,
+                min_pose_presence_confidence=min_tracking_confidence,
+            )
+            self.pose = PoseLandmarker.create_from_options(options)
+
+        self.mp_drawing = _mp_drawing
+        self.mp_pose = _mp_pose
 
     def process_frame(self, frame, prefer_batter=True):
         """
