@@ -1,142 +1,195 @@
 {% extends "base.html" %}
-
-{% block title %}Analyse — the CREASE Batting Lab{% endblock %}
+{% block title %}Upload & Analyse — the CREASE Batting Lab{% endblock %}
 
 {% block content %}
 <div class="row justify-content-center">
-    <div class="col-lg-8">
-        <div class="card border-0" style="background: #141414; border: 1px solid #2A2A2A !important;">
-            <div class="card-header" style="background: transparent; border-bottom: 1px solid #2A2A2A;">
-                <h4 class="mb-0" style="color: #E64D0F;">
-                    <i class="bi bi-cloud-upload"></i> Upload Batting Session
-                </h4>
-            </div>
-            <div class="card-body p-3 p-md-4">
+    <div class="col-12 col-lg-8">
+        <!-- Header -->
+        <div class="mb-4">
+            <h2 style="color: #E55000;"><i class="bi bi-cloud-upload"></i> Analyse a Batting Session</h2>
+            <p style="color: #888888;">
+                Upload a video from your gallery or record directly. We'll analyse every frame
+                for pose, ball tracking, bat swing, and coaching insights.
+            </p>
+        </div>
 
-                <!-- Camera Setup Alert -->
-                <div class="alert" style="background: #1A1A1A; border: 1px solid #333; color: #C2C2C2;">
-                    <div class="d-flex">
-                        <div class="me-3 fs-3" style="color: #E64D0F;"><i class="bi bi-camera"></i></div>
-                        <div>
-                            <strong style="color: #E64D0F;">📐 Camera Positioning Guide</strong>
-                            <ul class="mb-0 mt-1 small">
-                                <li><strong>Best view:</strong> Side-on, <strong>off side</strong> of the batter, at 90°</li>
-                                <li><strong>Distance:</strong> 8–12 m (25–40 ft) from the popping crease</li>
-                                <li><strong>Height:</strong> Camera at batter's <strong>chest height</strong></li>
-                                <li><strong>Second option:</strong> Front-on at bowler's end (22 yds away, head height)</li>
-                                <li>Use a <strong>tripod</strong>. Ensure full body is visible. Good lighting.</li>
-                            </ul>
-                            <a href="{{ url_for('camera_guide') }}" class="btn btn-sm btn-outline-crease mt-2">
-                                <i class="bi bi-info-circle"></i> Full Camera Setup Guide
-                            </a>
+        <div class="row g-3">
+            <!-- Upload Form -->
+            <div class="col-12 col-md-7">
+                <div class="card border-0 p-3 p-md-4"
+                     style="background: #141414; border: 1px solid #2A2A2A !important;">
+                    <form method="POST" enctype="multipart/form-data" id="upload-form">
+                        <!-- Drag & Drop Zone -->
+                        <div id="upload-zone" class="upload-zone mb-3">
+                            <div id="file-info">
+                                <i class="bi bi-camera-reels" style="font-size: 3rem; color: #444444;"></i>
+                                <h5 class="mt-3" style="color: #888888;">
+                                    Drop your video here
+                                </h5>
+                                <p style="color: #666666; font-size: 0.85rem;">
+                                    or tap to browse files
+                                </p>
+                                <div class="mt-2">
+                                    <span class="badge" style="background: #2A2A2A; color: #C2C2C2;">
+                                        MP4, MOV, AVI
+                                    </span>
+                                    <span class="badge ms-1" style="background: #2A2A2A; color: #C2C2C2;">
+                                        Max 500 MB
+                                    </span>
+                                </div>
+                                <!-- Quick capture button on mobile -->
+                                <button type="button" class="btn btn-outline-crease btn-sm mt-3 d-md-none"
+                                        onclick="openCamera()">
+                                    <i class="bi bi-camera"></i> Record Now
+                                </button>
+                            </div>
+                        </div>
+
+                        <input type="file" name="video" id="video"
+                               accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska"
+                               style="display: none;">
+
+                        <!-- Parameters -->
+                        <div class="row g-2 mb-3">
+                            <div class="col-6">
+                                <label class="form-label small" style="color: #AAAAAA;">Batting Hand</label>
+                                <select name="batting_hand" class="form-select form-select-dark"
+                                        style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                                    <option value="right">Right-handed</option>
+                                    <option value="left">Left-handed</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small" style="color: #AAAAAA;">Ball Colour</label>
+                                <select name="ball_color" class="form-select form-select-dark"
+                                        style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                                    <option value="red">Red (Training)</option>
+                                    <option value="white">White (Limited Overs)</option>
+                                    <option value="pink">Pink (Day/Night)</option>
+                                    <option value="yellow">Yellow (Tennis Ball)</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small" style="color: #AAAAAA;">Camera View</label>
+                                <select name="camera_view" class="form-select form-select-dark"
+                                        style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                                    <option value="side_off">Side-on (Off Side) — Ideal</option>
+                                    <option value="angled">~30° Angled (Narrow Nets) — Most Common</option>
+                                    <option value="front_on">Front-on (Bowler's End)</option>
+                                    <option value="side_leg">Side-on (Leg Side)</option>
+                                    <option value="behind">Behind (Wicketkeeper's End)</option>
+                                </select>
+                            </div>
+                            <div class="col-6">
+                                <label class="form-label small" style="color: #AAAAAA;">Session Label</label>
+                                <input type="text" name="session_label" class="form-control form-control-dark"
+                                       placeholder="e.g. Net session 12 June"
+                                       style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                            </div>
+                        </div>
+
+                        <!-- Multi-camera session code (optional) -->
+                        <div class="mb-3">
+                            <label class="form-label small" style="color: #AAAAAA;">
+                                <i class="bi bi-camera-reels"></i> Multi-Camera Code
+                                <span class="badge ms-1" style="background: #2A2A2A; color: #888888; font-size: 0.55rem; vertical-align: middle;">Optional</span>
+                            </label>
+                            <div class="input-group">
+                                <input type="text" name="session_code" class="form-control form-control-dark"
+                                       placeholder="e.g. XK9M2P (leave blank for auto-generated)"
+                                       maxlength="6"
+                                       style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2; text-transform: uppercase; font-family: monospace; letter-spacing: 3px;">
+                                <button class="btn btn-outline-crease" type="button" id="generate-code-btn"
+                                        title="Generate new code"
+                                        style="border: 1px solid #2A2A2A;">
+                                    <i class="bi bi-arrow-repeat"></i>
+                                </button>
+                            </div>
+                            <small style="color: #666666; font-size: 0.7rem;">
+                                Enter the same code on multiple phones to sync camera angles later.
+                                Leave blank and we'll generate one for you.
+                                <a href="{{ url_for('multi_cam_page') }}" style="color: #E55000;">Learn more</a>
+                            </small>
+                        </div>
+
+                        <!-- Submit -->
+                        <button type="submit" class="btn btn-crease w-100 py-2" id="submit-btn">
+                            <i class="bi bi-rocket-takeoff"></i> Start Analysis
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Camera Setup Guide (sidebar) -->
+            <div class="col-12 col-md-5">
+                <div class="card border-0 p-3 p-md-4 mb-3"
+                     style="background: #141414; border: 1px solid #2A2A2A !important;">
+                    <h6 style="color: #E55000;"><i class="bi bi-camera"></i> Best Results</h6>
+                    <ul class="list-unstyled mb-0" style="color: #888888; font-size: 0.85rem;">
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle" style="color: #4CAF50;"></i>
+                            Side-on, off side of the batter
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle" style="color: #4CAF50;"></i>
+                            8–12m from popping crease
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle" style="color: #4CAF50;"></i>
+                            Camera at chest height
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle" style="color: #4CAF50;"></i>
+                            1080p, 30-60 fps, landscape
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle" style="color: #4CAF50;"></i>
+                            Use a tripod — no handheld
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle" style="color: #4CAF50;"></i>
+                            Good front light, no backlight
+                        </li>
+                    </ul>
+                    <a href="{{ url_for('camera_guide') }}" class="btn btn-sm btn-outline-crease mt-3 w-100">
+                        <i class="bi bi-book"></i> Full Camera Guide
+                    </a>
+                </div>
+
+                <div class="card border-0 p-3 p-md-4"
+                     style="background: #141414; border: 1px solid #2A2A2A !important;">
+                    <h6 style="color: #E55000;"><i class="bi bi-lightning"></i> What You'll Get</h6>
+                    <div style="color: #888888; font-size: 0.85rem;">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-person-arms-up me-2" style="color: #E55000;"></i>
+                            Pose estimation & skeleton
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-dot me-2" style="color: #E55000; font-size: 1.5rem;"></i>
+                            Ball trajectory & speed
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-arrow-up-right me-2" style="color: #E55000;"></i>
+                            Bat swing path & speed
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-layers me-2" style="color: #E55000;"></i>
+                            7-phase shot detection
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-box-seam me-2" style="color: #E55000;"></i>
+                            Joint angle biomechanics
+                        </div>
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-chat-quote me-2" style="color: #E55000;"></i>
+                            Personalised coaching tips
+                        </div>
+                        <div class="d-flex align-items-center">
+                            <i class="bi bi-file-pdf me-2" style="color: #E55000;"></i>
+                            Professional PDF report
                         </div>
                     </div>
                 </div>
-
-                <hr style="border-color: #2A2A2A;">
-
-                <!-- Upload Form -->
-                <form id="uploadForm" action="{{ url_for('upload') }}" method="POST"
-                      enctype="multipart/form-data">
-
-                    <!-- Video file -->
-                    <div class="mb-3">
-                        <label for="video" class="form-label" style="color: #C2C2C2;">
-                            <i class="bi bi-film"></i> Select Video File
-                        </label>
-                        <input class="form-control bg-dark text-light border-secondary" type="file"
-                               id="video" name="video"
-                               accept=".mp4,.mov,.avi,.mkv,.webm,.m4v,.3gp" required>
-                        <div class="form-text" style="color: #888888;">
-                            MP4 recommended. Max 500 MB. Supports phone recordings.
-                        </div>
-                    </div>
-
-                    <hr style="border-color: #2A2A2A;">
-
-                    <h6 style="color: #E64D0F;"><i class="bi bi-gear"></i> Session Settings</h6>
-
-                    <!-- Batting hand -->
-                    <div class="mb-3">
-                        <label class="form-label" style="color: #C2C2C2;">Batting Hand</label>
-                        <div class="d-flex gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="batting_hand"
-                                       id="hand_right" value="right" checked>
-                                <label class="form-check-label text-light" for="hand_right">Right Handed</label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="batting_hand"
-                                       id="hand_left" value="left">
-                                <label class="form-check-label text-light" for="hand_left">Left Handed</label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Ball color -->
-                    <div class="mb-3">
-                        <label class="form-label" style="color: #C2C2C2;">Ball Colour</label>
-                        <div class="d-flex flex-wrap gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="ball_color"
-                                       id="ball_red" value="red" checked>
-                                <label class="form-check-label text-light" for="ball_red">
-                                    <span class="badge bg-danger">Red</span> Traditional
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="ball_color"
-                                       id="ball_white" value="white">
-                                <label class="form-check-label text-light" for="ball_white">
-                                    <span class="badge bg-light text-dark">White</span> Limited Overs
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="ball_color"
-                                       id="ball_pink" value="pink">
-                                <label class="form-check-label text-light" for="ball_pink">
-                                    <span class="badge" style="background:#ff69b4;">Pink</span> Day-Night
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Camera view -->
-                    <div class="mb-3">
-                        <label class="form-label" style="color: #C2C2C2;">Camera Position</label>
-                        <div class="d-flex flex-wrap gap-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="camera_view"
-                                       id="view_side_off" value="side_off" checked>
-                                <label class="form-check-label text-light" for="view_side_off">
-                                    <i class="bi bi-camera"></i> Side-on (Off side) <strong style="color: #4CAF50;">★ Best</strong>
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="camera_view"
-                                       id="view_front" value="front">
-                                <label class="form-check-label text-light" for="view_front">
-                                    <i class="bi bi-camera"></i> Front-on (Bowler's end)
-                                </label>
-                            </div>
-                            <div class="form-check">
-                                <input class="form-check-input" type="radio" name="camera_view"
-                                       id="view_side_leg" value="side_leg">
-                                <label class="form-check-label text-light" for="view_side_leg">
-                                    <i class="bi bi-camera"></i> Side-on (Leg side)
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <hr style="border-color: #2A2A2A;">
-
-                    <div class="d-grid">
-                        <button type="submit" class="btn btn-lg fw-bold btn-crease" id="submitBtn">
-                            <i class="bi bi-upload"></i> Upload & Analyse
-                        </button>
-                    </div>
-                </form>
             </div>
         </div>
     </div>
@@ -145,10 +198,89 @@
 
 {% block scripts %}
 <script>
-document.getElementById('uploadForm').addEventListener('submit', function(e) {
-    var btn = document.getElementById('submitBtn');
-    btn.disabled = true;
-    btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Uploading and queuing analysis...';
+// Multi-camera code generator button
+document.addEventListener('DOMContentLoaded', function() {
+    const codeInput = document.querySelector('input[name="session_code"]');
+    const genBtn = document.getElementById('generate-code-btn');
+
+    if (genBtn && codeInput) {
+        genBtn.addEventListener('click', function() {
+            const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 6; i++) {
+                code += chars[Math.floor(Math.random() * chars.length)];
+            }
+            codeInput.value = code;
+        });
+    }
+
+    // File input display
+    const fileInput = document.getElementById('video');
+    const uploadZone = document.getElementById('upload-zone');
+    const fileInfo = document.getElementById('file-info');
+
+    if (uploadZone) {
+        uploadZone.addEventListener('click', function(e) {
+            if (e.target.tagName !== 'BUTTON') {
+                fileInput.click();
+            }
+        });
+
+        uploadZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            uploadZone.style.borderColor = '#E55000';
+            uploadZone.style.background = 'rgba(229, 80, 0, 0.05)';
+        });
+
+        uploadZone.addEventListener('dragleave', function() {
+            uploadZone.style.borderColor = '#2A2A2A';
+            uploadZone.style.background = 'transparent';
+        });
+
+        uploadZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            uploadZone.style.borderColor = '#2A2A2A';
+            uploadZone.style.background = 'transparent';
+            if (e.dataTransfer.files.length) {
+                fileInput.files = e.dataTransfer.files;
+                updateFileDisplay(e.dataTransfer.files[0]);
+            }
+        });
+    }
+
+    if (fileInput) {
+        fileInput.addEventListener('change', function() {
+            if (this.files.length) {
+                updateFileDisplay(this.files[0]);
+            }
+        });
+    }
+
+    function updateFileDisplay(file) {
+        const size = (file.size / (1024 * 1024)).toFixed(1);
+        fileInfo.innerHTML = '<i class="bi bi-check-circle" style="font-size: 2rem; color: #4CAF50;"></i>' +
+            '<h5 class="mt-2" style="color: #C2C2C2;">' + file.name + '</h5>' +
+            '<p style="color: #888888; font-size: 0.85rem;">' + size + ' MB</p>' +
+            '<button type="button" class="btn btn-sm btn-outline-crease mt-2" onclick="resetUpload()">' +
+            '<i class="bi bi-arrow-repeat"></i> Choose different file</button>';
+    }
+
+    window.resetUpload = function() {
+        fileInput.value = '';
+        fileInfo.innerHTML = '<i class="bi bi-camera-reels" style="font-size: 3rem; color: #444444;"></i>' +
+            '<h5 class="mt-3" style="color: #888888;">Drop your video here</h5>' +
+            '<p style="color: #666666; font-size: 0.85rem;">or tap to browse files</p>' +
+            '<div class="mt-2">' +
+            '<span class="badge" style="background: #2A2A2A; color: #C2C2C2;">MP4, MOV, AVI</span>' +
+            '<span class="badge ms-1" style="background: #2A2A2A; color: #C2C2C2;">Max 500 MB</span>' +
+            '</div>';
+    };
+
+    window.openCamera = function() {
+        fileInput.setAttribute('capture', 'environment');
+        fileInput.click();
+        fileInput.removeAttribute('capture');
+    };
 });
 </script>
 {% endblock %}

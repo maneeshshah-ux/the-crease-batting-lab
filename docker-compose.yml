@@ -1,0 +1,141 @@
+# =============================================================================
+# Docker Compose — the CREASE Batting Lab (Full Stack)
+# =============================================================================
+# Deploys the analysis engine + Supabase (self-hosted) + n8n for automation.
+#
+# Usage:
+#   cp .env.example .env        # Edit with your values
+#   docker compose up -d        # Start all services
+#   docker compose logs -f      # Watch logs
+#
+# Or deploy on Coolify: import this compose file as a service.
+# =============================================================================
+
+version: "3.9"
+
+services:
+  # ── Analysis Engine ─────────────────────────────────────────────────
+  crease-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: crease-api
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5005}:5005"
+    env_file: .env
+    environment:
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_SERVICE_KEY=${SUPABASE_SERVICE_KEY}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET}
+      - SITE_DOMAIN=${SITE_DOMAIN:-http://localhost:5005}
+      - SECRET_KEY=${SECRET_KEY}
+      - DEBUG_AUTH=${DEBUG_AUTH:-0}
+    volumes:
+      - crease_uploads:/app/uploads
+      - crease_sessions:/app/sessions
+      - crease_reports:/app/reports
+      - crease_frames:/app/frames
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5005/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - crease_net
+
+  # ── n8n (Workflow Automation) ─────────────────────────────────────
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: crease-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_HOST=${N8N_HOST:-localhost}
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=${N8N_PROTOCOL:-http}
+      - WEBHOOK_URL=${N8N_WEBHOOK_URL:-}
+      - DB_TYPE=sqlite
+      - DB_SQLITE_DATABASE=/home/node/.n8n/database.sqlite
+    volumes:
+      - n8n_data:/home/node/.n8n
+    networks:
+      - crease_net
+    depends_on:
+      - crease-api
+
+  # ── Plausible Analytics (optional) ─────────────────────────────────
+  plausible:
+    image: plausible/analytics:latest
+    container_name: crease-plausible
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - BASE_URL=${PLAUSIBLE_URL:-http://localhost:8000}
+      - SECRET_KEY_BASE=${PLAUSIBLE_SECRET_KEY}
+      - DATABASE_URL=${PLAUSIBLE_DB_URL:-postgres://plausible:plausible@plausible-db:5432/plausible}
+      - DISABLE_REGISTRATION=${PLAUSIBLE_DISABLE_REG:-true}
+    depends_on:
+      - plausible-db
+    networks:
+      - crease_net
+
+  plausible-db:
+    image: postgres:16-alpine
+    container_name: crease-plausible-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=plausible
+      - POSTGRES_PASSWORD=plausible
+      - POSTGRES_DB=plausible
+    volumes:
+      - plausible_db:/var/lib/postgresql/data
+    networks:
+      - crease_net
+
+  # ── Cal.com (Booking — optional) ──────────────────────────────────
+  # Uncomment if you want self-hosted booking
+  # calcom:
+  #   image: calcom/cal.com:latest
+  #   container_name: crease-calcom
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
+  #   environment:
+  #     - DATABASE_URL=${CALCOM_DB_URL}
+  #     - NEXTAUTH_SECRET=${CALCOM_SECRET}
+  #     - NEXT_PUBLIC_WEBAPP_URL=${CALCOM_URL:-http://localhost:3000}
+  #   depends_on:
+  #     - calcom-db
+  #   networks:
+  #     - crease_net
+  #
+  # calcom-db:
+  #   image: postgres:16-alpine
+  #   container_name: crease-calcom-db
+  #   restart: unless-stopped
+  #   environment:
+  #     - POSTGRES_USER=calcom
+  #     - POSTGRES_PASSWORD=calcom
+  #     - POSTGRES_DB=calcom
+  #   volumes:
+  #     - calcom_db:/var/lib/postgresql/data
+  #   networks:
+  #     - crease_net
+
+volumes:
+  crease_uploads:
+  crease_sessions:
+  crease_reports:
+  crease_frames:
+  n8n_data:
+  plausible_db:
+  # calcom_db:
+
+networks:
+  crease_net:
+    driver: bridge

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<meta name="theme-color" content="#E64D0F">
+<meta name="theme-color" content="#E55000">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
@@ -15,7 +15,7 @@
 <title>The CREASE — Cricket Scoring</title>
 <style>
 :root {
-  --orange: #E64D0F; --orange-h: #e55a2b; --orange-glow: #ff8c5a;
+  --orange: #E55000; --orange-h: #e55a2b; --orange-glow: #ff8c5a;
   --bg: #0d1117; --card: #161b24; --card2: #1c2333; --border: #2d3548;
   --text: #e6e8ed; --dim: #8b8fa3; --green: #238636; --red: #da3633;
   --blue: #1f6feb; --purple: #8957e5; --amber: #d29922;
@@ -157,6 +157,7 @@ body {
 .hist-item .evt.bye { color: #64b5f6; }
 .hist-item .evt.wkt { color: var(--red); }
 .hist-item .evt.bonus { color: var(--orange); }
+.hist-item .evt.penalty { color: var(--red); }
 .hist-item .total { color: var(--orange); font-weight: 600; font-size: 10px; }
 
 .summary { max-width: 600px; margin: 0 auto; }
@@ -430,7 +431,7 @@ function renderSetup() {
     + '<label class="toggle"><input type="checkbox" id="rulesToggle"' + (s.modifiedRules ? ' checked' : '') + ' onchange="S().modifiedRules=this.checked;updateRulesDesc()"><span class="slider"></span></label></div>'
     + '<div style="font-size:10px;color:var(--dim);line-height:1.5;margin-top:6px" id="rulesDesc">'
     + (s.modifiedRules
-      ? '<strong>Variation ON:</strong> 3 runs scored as 4 \u00b7 +1 bonus run per ball \u00b7 wicket penalty -5 (ov 1-4) / -2 (ov 5-6) \u00b7 pair bats all overs regardless of wickets'
+      ? '<strong>Variation ON:</strong> 3 runs scored as 4 \u00b7 +1 bonus run per ball \u00b7 wicket penalty −5 (ov 1-4) / −2 (ov 5-6) — subtracted from total \u00b7 pair bats all overs regardless of wickets'
       : '<strong>Standard Rules:</strong> Normal cricket scoring. Runs as scored. No wicket penalty. Innings ends after 2 wickets or overs limit.')
     + '</div></div>'
     + '<button class="btn btn-orange btn-block" onclick="startMatch()">Start Match \u2192</button>'
@@ -452,7 +453,7 @@ function updateRulesDesc() {
   const d = document.getElementById('rulesDesc');
   if (!d) return;
   d.innerHTML = S().modifiedRules
-    ? '<strong>Variation ON:</strong> 3 runs scored as 4 \u00b7 +1 bonus run per ball \u00b7 wicket penalty -5 (ov 1-4) / -2 (ov 5-6) \u00b7 pair bats all overs regardless of wickets'
+    ? '<strong>Variation ON:</strong> 3 runs scored as 4 \u00b7 +1 bonus run per ball \u00b7 wicket penalty −5 (ov 1-4) / −2 (ov 5-6) — subtracted from total \u00b7 pair bats all overs regardless of wickets'
     : '<strong>Standard Rules:</strong> Normal cricket scoring. Runs as scored. No wicket penalty. Innings ends after 2 wickets or overs limit.';
 }
 
@@ -629,7 +630,7 @@ function renderMatch() {
     else if (h.type === 'bye') { txt = h.runs + ' bye' + (h.runs > 1 ? 's' : ''); cls = 'bye'; }
     else if (h.type === 'legbye') { txt = h.runs + ' leg bye' + (h.runs > 1 ? 's' : ''); cls = 'bye'; }
     else if (h.type === 'bonus') { txt = '+1 bonus ' + (h.bonusBatter || nm); cls = 'bonus'; }
-    else if (h.type === 'penalty') { txt = 'Penalty +' + h.runs; cls = 'bonus'; }
+    else if (h.type === 'penalty') { txt = 'Penalty ' + h.runs; cls = 'penalty'; }
     else { txt = nm + ' ' + h.runs + (h.bonus ? '+1' : ''); if (h.bonus) cls = 'bonus'; }
     return '<div class="hist-item"><span class="ball">' + h.over + '.' + h.ballNum + '</span><span class="evt ' + cls + '">' + txt + '</span><span class="total">' + h.runningTotal + '</span></div>';
   }).join('');
@@ -725,7 +726,7 @@ function renderScorecard() {
     else if (h.type === 'noball') txt = 'NB ' + h.runs + 'r';
     else if (h.type === 'bye') txt = h.runs + ' bye' + (h.runs > 1 ? 's' : '');
     else if (h.type === 'legbye') txt = h.runs + ' leg bye' + (h.runs > 1 ? 's' : '');
-    else if (h.type === 'penalty') txt = 'Penalty +' + h.runs;
+    else if (h.type === 'penalty') txt = 'Penalty ' + h.runs;
     else txt = nm + ' ' + h.runs + (h.bonus ? '+1' : '');
     return '<div class="hist-item"><span class="ball">' + h.over + '.' + h.ballNum + '</span><span class="evt">' + txt + '</span><span class="total">' + h.runningTotal + '</span></div>';
   }).join('') || '<div style="font-size:11px;color:var(--dim)">No balls yet</div>';
@@ -1006,16 +1007,17 @@ function penaltyRuns() {
     const inn2 = S().innings;
     if (!inn2 || inn2.complete) return;
     pushUndo();
-    inn2.total += runs;
+    // Penalty subtracts from team score
+    inn2.total -= runs;
     inn2.extras.penalty = (inn2.extras.penalty || 0) + runs;
     inn2.history.push({
       type: 'penalty', over: inn2.over, ballNum: inn2.legalBalls + 1,
-      b: inn2.striker, runs: runs, freeHit: false,
+      b: inn2.striker, runs: -runs, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
     render();
   };
-  showPickModal('Penalty runs?', [1, 2, 3, 4]);
+  showPickModal('Penalty runs (−)?', [1, 2, 3, 4]);
 }
 
 function wicket() {
@@ -2365,7 +2367,7 @@ function generateLandscapeReportHTML(session, date, idx) {
       else if (h.type === 'noball') txt = 'NB ' + h.runs + 'r';
       else if (h.type === 'bye') txt = h.runs + ' bye' + (h.runs > 1 ? 's' : '');
       else if (h.type === 'legbye') txt = h.runs + ' leg bye' + (h.runs > 1 ? 's' : '');
-      else if (h.type === 'penalty') txt = 'Penalty +' + h.runs;
+    else if (h.type === 'penalty') txt = 'Penalty ' + h.runs;
       else if (h.type === 'bonus') txt = '+1 bonus ' + (h.bonusBatter || nm);
       else txt = nm + ' ' + h.runs;
       bbb += '<span class="bbb-item">' + h.over + '.' + h.ballNum + ' ' + txt + ' (' + h.runningTotal + ')</span>';
@@ -2406,8 +2408,8 @@ function generateLandscapeReportHTML(session, date, idx) {
     + '<style>'
     + '@page { size: landscape; margin: 15mm; }'
     + 'body{font-family:-apple-system,BlinkMacSystemFont,system-ui,sans-serif;background:#fff;color:#1a1a2e;margin:0;padding:20px}'
-    + 'h1{font-size:24px;margin-bottom:2px;color:#E64D0F}'
-    + 'h2{font-size:18px;color:#E64D0F;border-bottom:2px solid #E64D0F;padding-bottom:4px;margin-top:0}'
+    + 'h1{font-size:24px;margin-bottom:2px;color:#E55000}'
+    + 'h2{font-size:18px;color:#E55000;border-bottom:2px solid #E55000;padding-bottom:4px;margin-top:0}'
     + 'h3{font-size:13px;color:#333;margin:8px 0 4px}'
     + '.sub{font-size:12px;color:#666;margin-bottom:12px}'
     + '.dim{color:#999}'
@@ -2422,9 +2424,9 @@ function generateLandscapeReportHTML(session, date, idx) {
     + '.logo img{height:40px}'
     + '.pair-page{page-break-before:always;padding-top:10px}'
     + '.pair-page:first-of-type{page-break-before:avoid}'
-    + '.pair-header{background:#fafafa;padding:10px 14px;border-radius:8px;margin-bottom:10px;border-left:4px solid #E64D0F}'
+    + '.pair-header{background:#fafafa;padding:10px 14px;border-radius:8px;margin-bottom:10px;border-left:4px solid #E55000}'
     + '.pair-title{font-size:16px;font-weight:700}'
-    + '.pair-score{font-size:20px;font-weight:800;color:#E64D0F}'
+    + '.pair-score{font-size:20px;font-weight:800;color:#E55000}'
     + '.bbb{font-size:10px;color:#555;line-height:1.6;display:flex;flex-wrap:wrap;gap:3px}'
     + '.bbb-item{background:#f5f5f5;padding:2px 6px;border-radius:3px;white-space:nowrap}'
     + '@media print{body{padding:0}.pair-page{page-break-before:always}}'

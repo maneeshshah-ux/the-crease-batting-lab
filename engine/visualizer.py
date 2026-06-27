@@ -509,10 +509,46 @@ class Visualizer:
     # 9. WATERMARK
     # ════════════════════════════════════════════════════
 
-    def draw_watermark(self, frame, text="CREASE Batting Lab"):
+    def draw_watermark(self, frame, text="the CREASE", subtitle="thecrease.app"):
+        """Draw a prominent brand watermark on the video frame.
+
+        Brand colours:
+          - Orange: (0, 80, 229) BGR = #E55000
+          - Dark bg: (10, 10, 10)
+          - Grey text: (120, 120, 120)
+
+        Always shown on free-tier output. Removed for Pro/Enterprise.
+        """
+        ORANGE = (0, 80, 229)
+        DARK = (10, 10, 10)
+        GREY = (120, 120, 120)
+
         h, w = frame.shape[:2]
-        cv2.putText(frame, text, (w // 2 - 60, h - 6),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, (60, 60, 60), 1)
+
+        # Semi-transparent overlay bar at the bottom
+        overlay = frame.copy()
+        bar_h = int(h * 0.06)
+        cv2.rectangle(overlay, (0, h - bar_h), (w, h), DARK, -1)
+        cv2.addWeighted(overlay, 0.88, frame, 0.12, 0, frame)
+
+        # Brand wordmark: "the" + "CREASE" (two putText calls for thin/bold effect)
+        cv2.putText(frame, "the", (12, h - int(bar_h * 0.40)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, ORANGE, 1)
+        cv2.putText(frame, "CREASE", (46, h - int(bar_h * 0.40)),
+                    cv2.FONT_HERSHEY_DUPLEX, 0.6, (255, 255, 255), 1)
+
+        # Tagline — subtle
+        cv2.putText(frame, '"Know your game."', (12, h - int(bar_h * 0.15)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, GREY, 1)
+
+        # URL — right side
+        cv2.putText(frame, "thecrease.app", (w - 140, h - int(bar_h * 0.40)),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, GREY, 1)
+
+        # Corner logo bug (top-right)
+        cv2.putText(frame, "CREASE", (w - 85, 22),
+                    cv2.FONT_HERSHEY_DUPLEX, 0.45, ORANGE, 1)
+
         return frame
 
     # ════════════════════════════════════════════════════

@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}Highlights — the CREASE Batting Lab{% endblock %}
+{% block og_title %}Batting Highlights — the CREASE{% endblock %}
+{% block og_desc %}Browse {{ count }} public batting analysis sessions. See real shot classifications, speeds, and bragging rights.{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <h4 style="color: #E55000; margin-bottom: 0;">
+                    <i class="bi bi-collection-play"></i> Public Highlights
+                </h4>
+                <small style="color: #888888;">{{ count }} session{% if count != 1 %}s{% endif %} shared by the community</small>
+            </div>
+            <a href="{{ url_for('upload') }}" class="btn btn-crease btn-sm">
+                <i class="bi bi-cloud-upload"></i> Analyse Yours
+            </a>
+        </div>
+    </div>
+</div>
+
+{% if entries %}
+<div class="row g-3">
+    {% for entry in entries %}
+    <div class="col-12 col-sm-6 col-lg-4">
+        <div class="card border-0 h-100"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-body p-3 d-flex flex-column">
+                <!-- Session label -->
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h6 style="color: #E55000; margin-bottom: 0; font-size: 0.9rem;">
+                            {{ entry.label }}
+                        </h6>
+                        <small style="color: #888888;">{{ entry.date }}</small>
+                    </div>
+                    <span class="badge" style="background: #2A2A2A; color: #E55000; font-size: 0.6rem;">
+                        {{ entry.batting_hand }}
+                    </span>
+                </div>
+
+                <!-- Stats row -->
+                <div class="d-flex gap-3 mb-2">
+                    <div>
+                        <small style="color: #888888; font-size: 0.6rem;">Shots</small>
+                        <div style="color: #FFFFFF; font-size: 0.9rem;">{{ entry.shots }}</div>
+                    </div>
+                    <div>
+                        <small style="color: #888888; font-size: 0.6rem;">Duration</small>
+                        <div style="color: #FFFFFF; font-size: 0.9rem;">{{ "%.0f"|format(entry.duration) }}s</div>
+                    </div>
+                    {% if entry.top_speed %}
+                    <div>
+                        <small style="color: #888888; font-size: 0.6rem;">Top Speed</small>
+                        <div style="color: #FFFFFF; font-size: 0.9rem;">{{ "%.0f"|format(entry.top_speed) }} km/h</div>
+                    </div>
+                    {% endif %}
+                </div>
+
+                <!-- Bowling type + Best shot -->
+                <div class="mb-2 d-flex gap-1 flex-wrap">
+                    {% if entry.bowling_type and entry.bowling_icon %}
+                    <span class="badge" style="background: #1A1A1A; color: #2196F3; font-size: 0.65rem;">
+                        {{ entry.bowling_icon }} {{ entry.bowling_type }}
+                    </span>
+                    {% endif %}
+                    {% if entry.best_shot %}
+                    <span class="badge" style="background: #2A2A2A; color: #FFC107; font-size: 0.65rem;">
+                        <i class="bi bi-star-fill" style="font-size: 0.5rem;"></i>
+                        {{ entry.best_shot }}
+                    </span>
+                    {% endif %}
+                </div>
+
+                <!-- One-liners -->
+                {% if entry.one_liners %}
+                <div class="flex-grow-1">
+                    {% for line in entry.one_liners[:2] %}
+                    <small style="color: #C2C2C2; font-size: 0.65rem; display: block;">
+                        {{ line }}
+                    </small>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Action -->
+                <div class="mt-2">
+                    <a href="{{ url_for('shared_session', share_token=entry.share_token) }}"
+                       class="btn btn-sm btn-crease w-100">
+                        <i class="bi bi-eye"></i> View Session
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="row">
+    <div class="col-12">
+        <div class="card border-0 text-center py-5"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-body">
+                <i class="bi bi-camera-reels" style="font-size: 3rem; color: #2A2A2A;"></i>
+                <h5 style="color: #888888;" class="mt-2">No highlights yet</h5>
+                <p style="color: #666666; font-size: 0.85rem;">
+                    Be the first! Upload and analyse a batting video, then share it with the community.
+                </p>
+                <a href="{{ url_for('upload') }}" class="btn btn-crease">
+                    <i class="bi bi-cloud-upload"></i> Upload Your Batting
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

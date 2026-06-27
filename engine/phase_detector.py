@@ -68,11 +68,19 @@ class PhaseDetector:
         self.phase_labels = []  # (frame_idx, phase) tuples
         self.shot_events = []  # detected individual shots
 
-    def add_frame(self, landmarks, frame_idx):
-        """Add a frame's landmarks for analysis."""
+    def add_frame(self, landmarks, frame_idx, is_batter=True):
+        """Add a frame's landmarks for analysis.
+
+        Args:
+            landmarks: MediaPipe pose landmarks for the detected person
+            frame_idx: Frame number in the original video
+            is_batter: Whether the detected person is believed to be the batter
+                        (True = batter, False = wicketkeeper / other person)
+        """
         self.frame_data.append({
             "frame": frame_idx,
             "landmarks": landmarks,
+            "is_batter": is_batter,
         })
 
     def analyze_phases(self, bat_analyzer=None):
@@ -401,9 +409,47 @@ class PhaseDetector:
         """Get number of detected shots."""
         return len(self.shot_events)
 
+    @staticmethod
+    def _is_valid_shot(phases_in_shot, shot_phases_ordered):
+        """Check whether a shot has a physically plausible batting phase sequence.
+
+        A valid batting shot must either:
+        1. Contain IMPACT (the ball was struck), or
+        2. Contain BACKLIFT AND DOWNSWING with backlift occurring before downswing
+           (indicating a genuine swing attempt, even if the ball wasn't hit)
+
+        Single-phase shots (e.g. only "backlift") are rejected as noise,
+        as are shots with physically impossible phase ordering
+        (e.g. downswing before backlift).
+        """
+        if BattingPhase.IMPACT.value in phases_in_shot:
+            return True
+
+        has_backlift = BattingPhase.BACKLIFT.value in phases_in_shot
+        has_downswing = BattingPhase.DOWNSWING.value in phases_in_shot
+
+        if not (has_backlift and has_downswing):
+            return False
+
+        # Check ordering: backlift must appear before downswing
+        backlift_order = None
+        downswing_order = None
+        for idx, (_, p) in enumerate(shot_phases_ordered):
+            if p == BattingPhase.BACKLIFT.value and backlift_order is None:
+                backlift_order = idx
+            if p == BattingPhase.DOWNSWING.value and downswing_order is None:
+                downswing_order = idx
+
+        return backlift_order is not None and downswing_order is not None and backlift_order < downswing_order
+
     def get_shot_summary(self):
-        """Get summary of each detected shot."""
+        """Get summary of each detected shot.
+
+        Filters out invalid shots (wicketkeeper noise, partial detections)
+        using _is_valid_shot() which checks for plausible batting phase sequences.
+        """
         summaries = []
+        valid_count = 0
         for i, shot in enumerate(self.shot_events):
             phases_in_shot = set(p for _, p in shot if p != "transition")
             start_frame = shot[0][0]
@@ -411,14 +457,28 @@ class PhaseDetector:
             duration_frames = end_frame - start_frame + 1
             duration_sec = duration_frames / self.fps if self.fps else 0
 
+            # Determine batter frame ratio
+            batter_frames = sum(
+                1 for fd in self.frame_data
+                if start_frame <= fd["frame"] <= end_frame and fd.get("is_batter", True)
+            )
+            total_shot_frames = max(1, duration_frames)
+            batter_ratio = batter_frames / total_shot_frames
+
+            # Skip if this isn't a valid batting shot
+            if not self._is_valid_shot(phases_in_shot, shot):
+                continue
+
+            valid_count += 1
             summaries.append({
-                "shot_number": i + 1,
+                "shot_number": valid_count,
                 "start_frame": start_frame,
                 "end_frame": end_frame,
                 "duration_frames": duration_frames,
                 "duration_sec": round(duration_sec, 2),
                 "phases": list(phases_in_shot),
                 "has_impact": BattingPhase.IMPACT.value in phases_in_shot,
+                "batter_frame_ratio": round(batter_ratio, 2),
             })
         return summaries
 

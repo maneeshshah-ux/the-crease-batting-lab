@@ -1,0 +1,440 @@
+/* =============================================================================
+   the CREASE Batting Lab — UX Enhancement Styles
+   =============================================================================
+   Smooth transitions, micro-interactions, onboarding, empty states, etc.
+   These extend the existing style.css.
+   ============================================================================= */
+
+/* ── Smooth page transitions ── */
+main {
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Card hover effects ── */
+.card-hover {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
+}
+
+/* ── Progress glow pulse ── */
+@keyframes pulseGlow {
+    0%, 100% { box-shadow: 0 0 8px rgba(230, 77, 15, 0.3); }
+    50% { box-shadow: 0 0 20px rgba(230, 77, 15, 0.6); }
+}
+.processing-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+}
+
+/* ── Skeleton loading placeholders ── */
+.skeleton {
+    background: linear-gradient(90deg, #1A1A1A 25%, #2A2A2A 50%, #1A1A1A 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 4px;
+}
+@keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* ── Drag-and-drop upload zone ── */
+.upload-zone {
+    border: 2px dashed #2A2A2A;
+    border-radius: 16px;
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: #0A0A0A;
+}
+.upload-zone:hover,
+.upload-zone.dragover {
+    border-color: #E55000;
+    background: #1A0A00;
+    transform: scale(1.01);
+}
+.upload-zone.dragover {
+    border-style: solid;
+    background: rgba(230, 77, 15, 0.1);
+}
+.upload-zone.has-file {
+    border-color: #4CAF50;
+    border-style: solid;
+    background: rgba(76, 175, 80, 0.05);
+}
+
+/* ── Empty state illustrations ── */
+.empty-state {
+    padding: 4rem 2rem;
+    text-align: center;
+}
+.empty-state-icon {
+    font-size: 4rem;
+    color: #2A2A2A;
+    margin-bottom: 1rem;
+}
+.empty-state-icon.animate {
+    animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+/* ── Onboarding step indicator ── */
+.onboarding-step {
+    display: flex;
+    align-items: center;
+    padding: 1rem;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    margin-bottom: 0.5rem;
+}
+.onboarding-step:hover {
+    background: rgba(230, 77, 15, 0.05);
+}
+.onboarding-step.active {
+    background: rgba(230, 77, 15, 0.1);
+    border: 1px solid rgba(230, 77, 15, 0.3);
+}
+.onboarding-step.completed {
+    background: rgba(76, 175, 80, 0.05);
+    border: 1px solid rgba(76, 175, 80, 0.2);
+}
+.step-number {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+.step-number.pending {
+    background: #2A2A2A;
+    color: #888888;
+}
+.step-number.active {
+    background: #E55000;
+    color: #FFFFFF;
+}
+.step-number.completed {
+    background: #4CAF50;
+    color: #FFFFFF;
+}
+
+/* ── Toast notifications ── */
+.toast-container {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    z-index: 9999;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+}
+.toast-crease {
+    min-width: 280px;
+    max-width: 400px;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    background: #1A1A1A;
+    border: 1px solid #2A2A2A;
+    color: #C2C2C2;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    animation: slideIn 0.3s ease-out;
+}
+@keyframes slideIn {
+    from { transform: translateX(100%); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+}
+.toast-crease.success { border-color: #4CAF50; }
+.toast-crease.error { border-color: #E55000; }
+.toast-crease.warning { border-color: #FFC107; }
+
+/* ── Score circle ── */
+.score-circle {
+    width: 120px;
+    height: 120px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin: 0 auto;
+    position: relative;
+}
+.score-circle .score-ring {
+    position: absolute;
+    top: -4px;
+    left: -4px;
+    width: 128px;
+    height: 128px;
+    border-radius: 50%;
+    border: 4px solid transparent;
+    border-top-color: #E55000;
+    animation: spinRing 2s linear infinite;
+}
+@keyframes spinRing {
+    to { transform: rotate(360deg); }
+}
+
+/* ── Metric bars (skill meter style) ── */
+.skill-bar {
+    height: 8px;
+    border-radius: 4px;
+    background: #0A0A0A;
+    overflow: hidden;
+    margin: 0.25rem 0;
+}
+.skill-bar-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 1s ease-in-out;
+    position: relative;
+}
+.skill-bar-fill::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 20px;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3));
+    border-radius: 0 4px 4px 0;
+}
+.skill-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-top: 0.5rem;
+}
+
+/* ── Trending indicator ── */
+.trend-up { color: #4CAF50; }
+.trend-down { color: #E55000; }
+.trend-stable { color: #FFC107; }
+
+/* ── Responsive metric grid ── */
+.metric-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+}
+.metric-card {
+    background: #0A0A0A;
+    border-radius: 12px;
+    padding: 1rem;
+    text-align: center;
+    border: 1px solid #1A1A1A;
+    transition: all 0.2s ease;
+}
+.metric-card:hover {
+    border-color: #2A2A2A;
+    transform: translateY(-1px);
+}
+.metric-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #E55000;
+}
+.metric-label {
+    font-size: 0.75rem;
+    color: #888888;
+    margin-top: 0.25rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* ── Phase timeline ── */
+.phase-timeline {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    padding: 1rem 0;
+    overflow-x: auto;
+}
+.phase-segment {
+    flex: 1;
+    min-width: 40px;
+    height: 8px;
+    border-radius: 4px;
+    margin: 0 1px;
+    position: relative;
+    transition: all 0.2s ease;
+}
+.phase-segment:hover {
+    transform: scaleY(2);
+    cursor: pointer;
+}
+.phase-label {
+    font-size: 0.65rem;
+    color: #888888;
+    text-align: center;
+    margin-top: 0.25rem;
+    white-space: nowrap;
+}
+
+/* ── Mobile bottom nav ── */
+.mobile-bottom-nav {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #0A0A0A;
+    border-top: 1px solid #2A2A2A;
+    padding: 0.5rem;
+    z-index: 999;
+}
+.mobile-bottom-nav .nav-item {
+    flex: 1;
+    text-align: center;
+    color: #888888;
+    font-size: 0.7rem;
+    text-decoration: none;
+    padding: 0.25rem 0;
+}
+.mobile-bottom-nav .nav-item.active {
+    color: #E55000;
+}
+.mobile-bottom-nav .nav-item i {
+    font-size: 1.3rem;
+    display: block;
+    margin-bottom: 0.1rem;
+}
+@media (max-width: 768px) {
+    .mobile-bottom-nav {
+        display: flex;
+    }
+    main {
+        padding-bottom: 4rem !important;
+    }
+}
+
+/* ── Camera viewfinder overlay ── */
+.viewfinder {
+    position: relative;
+    border-radius: 16px;
+    overflow: hidden;
+    background: #0A0A0A;
+}
+.viewfinder::before {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    height: 80%;
+    border: 2px solid rgba(230, 77, 15, 0.3);
+    border-radius: 8px;
+    pointer-events: none;
+    z-index: 1;
+}
+.viewfinder::after {
+    content: '👤 Frame batter here';
+    position: absolute;
+    bottom: 1rem;
+    left: 50%;
+    transform: translateX(-50%);
+    color: rgba(255,255,255,0.4);
+    font-size: 0.75rem;
+    pointer-events: none;
+    z-index: 1;
+}
+
+/* ── Score gauge (speedometer style) ── */
+.score-gauge {
+    width: 200px;
+    height: 100px;
+    position: relative;
+    overflow: hidden;
+    margin: 0 auto 1rem;
+}
+.score-gauge-bg {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    border: 12px solid #1A1A1A;
+    position: absolute;
+    top: 0;
+}
+.score-gauge-fill {
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    border: 12px solid transparent;
+    border-top-color: #E55000;
+    position: absolute;
+    top: 0;
+    transform: rotate(calc(var(--score-pct, 0) * 1.8deg - 90deg));
+    transition: transform 1.5s ease-out;
+}
+.score-gauge-needle {
+    width: 3px;
+    height: 80px;
+    background: #E55000;
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform-origin: bottom center;
+    transform: translateX(-50%) rotate(calc(var(--score-pct, 0) * 1.8deg - 90deg));
+    transition: transform 1.5s ease-out;
+    border-radius: 2px;
+}
+.score-gauge-value {
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2rem;
+    font-weight: 800;
+    color: #E55000;
+}
+
+/* ── Confetti / celebration effect ── */
+@keyframes confettiFall {
+    0% { transform: translateY(-10px) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+}
+.confetti-piece {
+    position: fixed;
+    width: 8px;
+    height: 8px;
+    top: -10px;
+    z-index: 9999;
+    animation: confettiFall 3s ease-in forwards;
+    pointer-events: none;
+}
+
+/* ── Pulse dot for live status ── */
+.pulse-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 0.5rem;
+}
+.pulse-dot.active {
+    background: #4CAF50;
+    animation: pulse 2s infinite;
+}
+@keyframes pulse {
+    0% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.4); }
+    70% { box-shadow: 0 0 0 10px rgba(76, 175, 80, 0); }
+    100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+}

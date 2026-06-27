@@ -28,15 +28,17 @@ class BattingAnalyser:
         # result contains all metrics, phase info, and summary
     """
 
-    def __init__(self, batting_hand="right", ball_color="red", fps=None):
+    def __init__(self, batting_hand="right", ball_color="red", fps=None,
+                 frame_step=2):
         self.batting_hand = batting_hand
         self.ball_color = ball_color
         self.fps = fps
+        self.frame_step = max(1, frame_step)
 
         # Components
         self.pose_estimator = PoseEstimator(
             static_mode=False,
-            model_complexity=1,
+            model_complexity=0,  # lite model: 3x faster, 1/3 memory
             smooth=True,
         )
         self.ball_tracker = BallTracker(
@@ -112,6 +114,7 @@ class BattingAnalyser:
         swing_path_history = []
 
         frame_idx = 0
+        _prev_display = None  # cache last annotated frame for skipped frames
 
         while True:
             ret, frame = cap.read()
@@ -122,153 +125,152 @@ class BattingAnalyser:
             if progress_callback and frame_idx % 30 == 0:
                 progress_callback(frame_idx, total_frames, "Processing")
 
+            # ── Frame step: skip heavy analysis every Nth frame ──────────────
+            should_analyze = (frame_idx % self.frame_step == 0)
+
             # 1. Pose estimation (with wicketkeeper filtering)
-            pose_result = self.pose_estimator.process_frame(frame, prefer_batter=True)
+            if should_analyze:
+                pose_result = self.pose_estimator.process_frame(frame, prefer_batter=True)
+                # Skip analysis if detected person is likely not the batter
+                if pose_result["success"] and not pose_result.get("is_batter", True):
+                    pose_result["success"] = False
+            else:
+                pose_result = {"success": False, "landmarks": {},
+                               "landmark_list": None, "raw": None, "is_batter": False}
 
-            # Skip analysis if detected person is likely not the batter
-            if pose_result["success"] and not pose_result.get("is_batter", True):
-                pose_result["success"] = False
-
-            # 2. Ball tracking
+            # 2. Ball tracking (runs every frame — cheap)
             ball_result = self.ball_tracker.track(frame, frame_idx)
             if ball_result["detected"]:
                 ball_trajectory.append((ball_result["x"], ball_result["y"]))
 
-            # 3. Bat analysis (from pose)
+            # 3. Bat analysis (from pose — only on analyzed frames)
             bat_result = {}
-            if pose_result["success"]:
+            if pose_result["success"] and should_analyze:
                 bat_result = self.bat_analyzer.analyze_swing(
                     pose_result["landmarks"], h, w, frame_idx
                 )
                 swing_path_history.append(bat_result.get("bat_tip"))
 
             # 4. Phase detection
-            if pose_result["success"]:
+            if pose_result["success"] and should_analyze:
                 self.phase_detector.add_frame(pose_result["landmarks"], frame_idx)
 
-            # 5. Frame metrics
-            frame_metrics = {
-                "frame": frame_idx,
-                "timestamp_sec": frame_idx / max(1, video_fps),
-            }
+            # 5. Frame metrics — only store for analyzed frames
+            if should_analyze:
+                frame_metrics = {
+                    "frame": frame_idx,
+                    "timestamp_sec": frame_idx / max(1, video_fps),
+                }
 
-            fm = {}  # default empty
-            if pose_result["success"]:
-                fm = self.metrics.compute_frame_metrics(pose_result["landmarks"])
-                frame_metrics.update(fm)
+                fm = {}  # default empty
+                if pose_result["success"]:
+                    fm = self.metrics.compute_frame_metrics(pose_result["landmarks"])
+                    frame_metrics.update(fm)
 
-            # Add bat metrics
-            frame_metrics["bat_speed_px"] = bat_result.get("bat_speed_px", 0)
-            frame_metrics["bat_angle_deg"] = bat_result.get("bat_angle_deg")
-            frame_metrics["bat_lift_height"] = bat_result.get("bat_lift_height")
+                # Add bat metrics
+                frame_metrics["bat_speed_px"] = bat_result.get("bat_speed_px", 0)
+                frame_metrics["bat_angle_deg"] = bat_result.get("bat_angle_deg")
+                frame_metrics["bat_lift_height"] = bat_result.get("bat_lift_height")
 
-            # Add ball info
-            frame_metrics["ball_detected"] = ball_result["detected"]
-            frame_metrics["ball_x"] = ball_result["x"]
-            frame_metrics["ball_y"] = ball_result["y"]
+                # Add ball info
+                frame_metrics["ball_detected"] = ball_result["detected"]
+                frame_metrics["ball_x"] = ball_result["x"]
+                frame_metrics["ball_y"] = ball_result["y"]
 
-            all_frame_metrics.append(frame_metrics)
+                all_frame_metrics.append(frame_metrics)
 
-            # Collect time series
-            if fm.get("front_knee_angle") is not None:
-                joint_histories["front_knee"].append(fm["front_knee_angle"])
-            if fm.get("back_knee_angle") is not None:
-                joint_histories["back_knee"].append(fm["back_knee_angle"])
-            if fm.get("front_elbow_angle") is not None:
-                joint_histories["front_elbow"].append(fm["front_elbow_angle"])
-            if fm.get("back_elbow_angle") is not None:
-                joint_histories["back_elbow"].append(fm["back_elbow_angle"])
-            if fm.get("spine_angle") is not None:
-                joint_histories["spine_angle"].append(fm["spine_angle"])
-            if fm.get("shoulder_angle") is not None:
-                joint_histories["shoulder_angle"].append(fm["shoulder_angle"])
-            if fm.get("head_movement") is not None:
-                head_movement_history.append(fm["head_movement"])
-            if bat_result.get("bat_speed_px", 0) > 0:
-                bat_speed_history.append(bat_result["bat_speed_px"])
+                # Collect time series
+                if fm.get("front_knee_angle") is not None:
+                    joint_histories["front_knee"].append(fm["front_knee_angle"])
+                if fm.get("back_knee_angle") is not None:
+                    joint_histories["back_knee"].append(fm["back_knee_angle"])
+                if fm.get("front_elbow_angle") is not None:
+                    joint_histories["front_elbow"].append(fm["front_elbow_angle"])
+                if fm.get("back_elbow_angle") is not None:
+                    joint_histories["back_elbow"].append(fm["back_elbow_angle"])
+                if fm.get("spine_angle") is not None:
+                    joint_histories["spine_angle"].append(fm["spine_angle"])
+                if fm.get("shoulder_angle") is not None:
+                    joint_histories["shoulder_angle"].append(fm["shoulder_angle"])
+                if fm.get("head_movement") is not None:
+                    head_movement_history.append(fm["head_movement"])
+                if bat_result.get("bat_speed_px", 0) > 0:
+                    bat_speed_history.append(bat_result["bat_speed_px"])
 
-            # 6. Render output video (clean cricketing overlays)
+            # 6. Render output video (only annotate analyzed frames)
             if out_writer:
                 display = frame.copy()
-                current_phase = self.phase_detector.get_phase_at_frame(frame_idx)
+                if should_analyze and pose_result["success"]:
+                    current_phase = self.phase_detector.get_phase_at_frame(frame_idx)
 
-                # --- Phase bar at top (replaces old colored border) ---
-                display = self.visualizer.draw_phase_bar(display, current_phase)
+                    # --- Phase bar at top ---
+                    display = self.visualizer.draw_phase_bar(display, current_phase)
 
-                # --- Head stability indicator (traffic light) ---
-                nose_lm = None
-                if pose_result["success"]:
+                    # --- Head stability indicator (traffic light) ---
                     nose_lm = pose_result["landmarks"].get("NOSE", {})
-                head_x = nose_lm.get("pixel_x") if nose_lm else None
-                head_y = nose_lm.get("pixel_y") if nose_lm else None
-                head_mvmt = fm.get("head_movement", 0) if fm else 0
+                    head_x = nose_lm.get("pixel_x") if nose_lm else None
+                    head_y = nose_lm.get("pixel_y") if nose_lm else None
+                    head_mvmt = fm.get("head_movement", 0) if fm else 0
 
-                display = self.visualizer.draw_head_indicator(
-                    display, head_mvmt, head_x, head_y
-                )
-
-                # --- Balance — spirit level ---
-                spine_angle = fm.get("spine_angle", None)
-                front_knee = fm.get("front_knee_angle", None)
-                display = self.visualizer.draw_balance_level(
-                    display, spine_angle, front_knee
-                )
-
-                # --- Ball trajectory — REMOVED (user feedback: distracting) ---
-
-                # --- Bat swing path (very subtle arc) ---
-                if swing_path_history:
-                    clean_path = [p for p in swing_path_history if p]
-                    if clean_path:
-                        display = self.visualizer.draw_swing_path(
-                            display, clean_path[-30:], phase=current_phase
-                        )
-
-                # --- Bat line (subtle — only when swinging) ---
-                if bat_result.get("has_swing_data"):
-                    display = self.visualizer.draw_bat_line(display, bat_result)
-
-                # --- Bat speed — speedometer with peak tracking ---
-                bat_spd_px = fm.get("bat_speed_px", 0)
-                # Live km/h: hand speed * lever factor → bat tip speed estimate
-                # Use calibration if available, else a reasonable default (120 px/m)
-                px_per_m_live = (self.calibration_px_per_m or 120.0)
-                lever = self.bat_analyzer.HAND_TO_TIP_FACTOR
-                live_kmh = (bat_spd_px * video_fps / px_per_m_live * 3.6 * lever
-                           if bat_spd_px > 0 else None)
-                # Sanity cap: ignore glitches > 200 km/h bat tip speed
-                if live_kmh and live_kmh > 200:
-                    live_kmh = None
-                if live_kmh and live_kmh > (self.visualizer.session_peak_kmh or 0):
-                    self.visualizer.session_peak_kmh = live_kmh
-                cal_ok = self.calibration_px_per_m is not None
-                display = self.visualizer.draw_speedometer(
-                    display,
-                    speed_kmh=live_kmh,
-                    calibration_available=cal_ok,
-                    peak_session_kmh=self.visualizer.session_peak_kmh,
-                )
-
-                # --- Bat speed overlay: big text during swings ---
-                if live_kmh and live_kmh > 5:
-                    is_impact = (current_phase == "impact")
-                    display = self.visualizer.draw_bat_speed_overlay(
-                        display, live_kmh, impact_frame=is_impact
+                    display = self.visualizer.draw_head_indicator(
+                        display, head_mvmt, head_x, head_y
                     )
 
-                # --- Weight transfer — bar (Fox Focus style) ---
-                if pose_result["success"] and pose_result.get("landmarks"):
+                    # --- Balance — spirit level ---
+                    display = self.visualizer.draw_balance_level(
+                        display, fm.get("spine_angle", None), fm.get("front_knee_angle", None)
+                    )
+
+                    # --- Bat swing path ---
+                    if swing_path_history:
+                        clean_path = [p for p in swing_path_history if p]
+                        if clean_path:
+                            display = self.visualizer.draw_swing_path(
+                                display, clean_path[-30:], phase=current_phase
+                            )
+
+                    # --- Bat line ---
+                    if bat_result.get("has_swing_data"):
+                        display = self.visualizer.draw_bat_line(display, bat_result)
+
+                    # --- Bat speed — speedometer ---
+                    bat_spd_px = fm.get("bat_speed_px", 0)
+                    px_per_m_live = (self.calibration_px_per_m or 120.0)
+                    lever = self.bat_analyzer.HAND_TO_TIP_FACTOR
+                    live_kmh = (bat_spd_px * video_fps / px_per_m_live * 3.6 * lever
+                               if bat_spd_px > 0 else None)
+                    if live_kmh and live_kmh > 200:
+                        live_kmh = None
+                    if live_kmh and live_kmh > (self.visualizer.session_peak_kmh or 0):
+                        self.visualizer.session_peak_kmh = live_kmh
+                    display = self.visualizer.draw_speedometer(
+                        display, speed_kmh=live_kmh,
+                        calibration_available=self.calibration_px_per_m is not None,
+                        peak_session_kmh=self.visualizer.session_peak_kmh,
+                    )
+
+                    # --- Bat speed overlay ---
+                    if live_kmh and live_kmh > 5:
+                        display = self.visualizer.draw_bat_speed_overlay(
+                            display, live_kmh, impact_frame=(current_phase == "impact")
+                        )
+
+                    # --- Weight transfer ---
                     display = self.visualizer.draw_weight_transfer(
                         display, pose_result["landmarks"]
                     )
 
-                # --- Phase legend (top-left, persistent) ---
-                if frame_idx < 10 or frame_idx % 600 == 0:
-                    display = self.visualizer.draw_phase_legend(display)
+                    # --- Phase legend ---
+                    if frame_idx < 10 or frame_idx % 600 == 0:
+                        display = self.visualizer.draw_phase_legend(display)
 
-                # --- Watermark ---
+                    _prev_display = display  # cache for skipped frames
+                elif _prev_display is not None:
+                    # Skipped frame: reuse last annotated display
+                    display = _prev_display
+
+                # --- Watermark (every frame) ---
                 display = self.visualizer.draw_watermark(display)
-
                 out_writer.write(display)
 
             frame_idx += 1

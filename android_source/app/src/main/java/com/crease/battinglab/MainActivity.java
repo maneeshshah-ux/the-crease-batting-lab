@@ -62,7 +62,15 @@ public class MainActivity extends Activity {
         // Setup WebView
         setupWebView();
 
-        // Load the app
+        // Restore saved page state (app was killed & recreated) or load fresh
+        if (savedInstanceState != null) {
+            String savedUrl = savedInstanceState.getString("webview_url", "");
+            if (!savedUrl.isEmpty()) {
+                webView.loadUrl(savedUrl);
+                return;  // skip default loadApp()
+            }
+        }
+        // First launch or no saved URL — load home
         loadApp();
     }
 
@@ -322,10 +330,11 @@ public class MainActivity extends Activity {
         // WebView handles its own config changes
     }
 
-    // Save state
+    // ── Lifecycle: leave & come back ─────────────────────────────────────
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        outState.putString("webview_url", webView.getUrl());
         webView.saveState(outState);
     }
 
@@ -333,5 +342,19 @@ public class MainActivity extends Activity {
     protected void onRestoreInstanceState(Bundle savedInstanceState) {
         super.onRestoreInstanceState(savedInstanceState);
         webView.restoreState(savedInstanceState);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        webView.onPause();
+        webView.pauseTimers();  // pause JS timers (polling) when app is backgrounded
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        webView.onResume();
+        webView.resumeTimers();  // resume JS timers when app comes back
     }
 }

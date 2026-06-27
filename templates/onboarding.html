@@ -1,0 +1,126 @@
+<!-- Onboarding Overlay — shown to first-time users -->
+<div id="onboarding-overlay" class="onboarding-overlay" style="display: none;">
+    <div class="onboarding-modal">
+        <button type="button" class="btn-close-white position-absolute top-0 end-0 m-3"
+                onclick="dismissOnboarding()" style="filter: invert(0.8); font-size: 1.2rem;">
+            <i class="bi bi-x-lg"></i>
+        </button>
+
+        <div class="text-center mb-4">
+            <img src="{{ url_for('static', filename='the_crease_logo.png') }}"
+                 alt="the CREASE" height="48" class="mb-2">
+            <h4 style="color: #E55000;">Welcome to the CREASE</h4>
+            <p style="color: #888888;">Your AI cricket batting coach — get started in 3 steps</p>
+        </div>
+
+        <!-- Step 1 -->
+        <div class="onboarding-step active" id="on-step-1">
+            <div class="step-number active">1</div>
+            <div class="flex-grow-1">
+                <h6 style="color: #C2C2C2; margin-bottom: 0.25rem;">Record a batting session</h6>
+                <p style="color: #888888; font-size: 0.85rem; margin-bottom: 0;">
+                    Set up your phone on a tripod, side-on to the batter (off side).
+                    Record 1-2 overs in landscape mode at 1080p.
+                </p>
+                <div class="mt-2">
+                    <span class="badge" style="background: #E55000; font-size: 0.7rem;">
+                        <i class="bi bi-camera"></i> 8-12m from popping crease
+                    </span>
+                    <span class="badge ms-1" style="background: #2A2A2A; color: #C2C2C2; font-size: 0.7rem;">
+                        <i class="bi bi-phone-landscape"></i> Landscape
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="onboarding-step" id="on-step-2">
+            <div class="step-number pending">2</div>
+            <div class="flex-grow-1">
+                <h6 style="color: #C2C2C2; margin-bottom: 0.25rem;">Upload & analyse</h6>
+                <p style="color: #888888; font-size: 0.85rem; margin-bottom: 0;">
+                    Upload the video — our AI analyses every frame: pose, ball tracking,
+                    bat swing, and phase detection. Takes about 2-3 minutes.
+                </p>
+            </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="onboarding-step" id="on-step-3">
+            <div class="step-number pending">3</div>
+            <div class="flex-grow-1">
+                <h6 style="color: #C2C2C2; margin-bottom: 0.25rem;">Get your coaching report</h6>
+                <p style="color: #888888; font-size: 0.85rem; margin-bottom: 0;">
+                    View your score, key metrics, and personalised coaching tips.
+                    Track your progress over time and compare sessions.
+                </p>
+            </div>
+        </div>
+
+        <div class="text-center mt-4">
+            <a href="{{ url_for('upload') }}" class="btn btn-crease btn-lg px-5">
+                <i class="bi bi-cloud-upload"></i> Start My First Analysis
+            </a>
+            <br>
+            <button class="btn btn-sm mt-2" style="color: #888888;"
+                    onclick="dismissOnboarding()">
+                I know what I'm doing — skip
+            </button>
+        </div>
+    </div>
+</div>
+
+<style>
+.onboarding-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0, 0, 0, 0.85);
+    z-index: 9998;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    backdrop-filter: blur(4px);
+}
+.onboarding-modal {
+    background: #141414;
+    border: 1px solid #2A2A2A;
+    border-radius: 20px;
+    padding: 2.5rem 2rem;
+    max-width: 480px;
+    width: 90%;
+    position: relative;
+    box-shadow: 0 24px 48px rgba(0, 0, 0, 0.5);
+    animation: fadeIn 0.3s ease-out;
+}
+.onboarding-step {
+    display: flex;
+    align-items: flex-start;
+    padding: 1rem;
+    border-radius: 12px;
+    margin-bottom: 0.5rem;
+    transition: all 0.3s ease;
+    cursor: default;
+}
+.onboarding-step:hover {
+    background: rgba(230, 77, 15, 0.05);
+}
+.onboarding-step.active {
+    background: rgba(230, 77, 15, 0.08);
+    border: 1px solid rgba(230, 77, 15, 0.2);
+}
+.step-number {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 700;
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+.step-number.pending { background: #2A2A2A; color: #888888; }
+.step-number.active { background: #E55000; color: #FFFFFF; }
+.step-number.completed { background: #4CAF50; color: #FFFFFF; }
+</style>

@@ -85,7 +85,7 @@ BATTING_SYMMETRY_PAIRS = [
 class PoseEstimator:
     """MediaPipe Pose wrapper for batting analysis."""
 
-    def __init__(self, static_mode=False, model_complexity=1, smooth=True,
+    def __init__(self, static_mode=False, model_complexity=0, smooth=True,
                  min_detection_confidence=0.7, min_tracking_confidence=0.7):
         """
         Args:

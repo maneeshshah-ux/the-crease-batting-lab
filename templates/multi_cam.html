@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Multi-Camera Sync — the CREASE{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-12 col-lg-8">
+        <!-- Header -->
+        <div class="mb-4">
+            <h2 style="color: #E55000;"><i class="bi bi-camera-reels"></i> Multi-Camera Sync</h2>
+            <p style="color: #888888;">
+                Sync recordings from multiple cameras of the same batting session.
+                Uses audio cross-correlation to automatically align timelines.
+            </p>
+            {% if pro_feature %}
+            <div class="alert alert-info d-flex align-items-center gap-2 py-2 px-3 mb-0"
+                 style="background: #1A1A1A; border: 1px solid #2A2A2A; border-radius: 8px; color: #C2C2C2;">
+                <i class="bi bi-star-fill" style="color: #FFC107;"></i>
+                <small>PRO feature. <a href="{{ url_for('auth.profile') }}" style="color: #E55000;">Upgrade to PRO</a> for unlimited multi-camera sync.</small>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- How it works -->
+        <div class="row g-3 mb-4">
+            <div class="col-12 col-md-4">
+                <div class="card border-0 p-3 text-center h-100"
+                     style="background: #141414; border: 1px solid #2A2A2A !important;">
+                    <div style="font-size: 2rem; color: #E55000;">1️⃣</div>
+                    <h6 style="color: #C2C2C2; font-size: 0.85rem; margin-top: 0.5rem;">Record</h6>
+                    <p style="color: #888888; font-size: 0.75rem; margin-bottom: 0;">
+                        Set up multiple phones/cameras at different angles. Make sure audio is enabled on all.
+                    </p>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="card border-0 p-3 text-center h-100"
+                     style="background: #141414; border: 1px solid #2A2A2A !important;">
+                    <div style="font-size: 2rem; color: #E55000;">2️⃣</div>
+                    <h6 style="color: #C2C2C2; font-size: 0.85rem; margin-top: 0.5rem;">Share Code</h6>
+                    <p style="color: #888888; font-size: 0.75rem; margin-bottom: 0;">
+                        Share the session code (from the QR/processing page) so everyone uploads with the same code.
+                    </p>
+                </div>
+            </div>
+            <div class="col-12 col-md-4">
+                <div class="card border-0 p-3 text-center h-100"
+                     style="background: #141414; border: 1px solid #2A2A2A !important;">
+                    <div style="font-size: 2rem; color: #E55000;">3️⃣</div>
+                    <h6 style="color: #C2C2C2; font-size: 0.85rem; margin-top: 0.5rem;">Sync</h6>
+                    <p style="color: #888888; font-size: 0.75rem; margin-bottom: 0;">
+                        Enter the session codes below and we'll align all cameras to a unified timeline.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync Form -->
+        <div class="card border-0 p-3 p-md-4 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <h5 style="color: #E55000;" class="mb-3">
+                <i class="bi bi-link-45deg"></i> Sync by Session Codes
+            </h5>
+            <p style="color: #888888; font-size: 0.85rem;">
+                Enter the 6-character codes from each camera's analysis. We'll find the recordings and sync them.
+            </p>
+
+            <form id="sync-form">
+                <div id="code-inputs">
+                    <div class="input-group mb-2">
+                        <input type="text" class="form-control form-control-dark code-input"
+                               placeholder="e.g. XK9M2P" maxlength="6" required
+                               style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2; font-family: monospace; letter-spacing: 3px; text-transform: uppercase;">
+                        <button class="btn btn-outline-crease" type="button" onclick="this.closest('.input-group').remove()"
+                                style="border: 1px solid #2A2A2A;">
+                            <i class="bi bi-x"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <button type="button" class="btn btn-sm btn-outline-crease mb-3" onclick="addCodeInput()">
+                    <i class="bi bi-plus-lg"></i> Add another code
+                </button>
+
+                <br>
+                <button type="submit" class="btn btn-crease" id="sync-btn">
+                    <i class="bi bi-arrow-repeat"></i> Sync Recordings
+                </button>
+            </form>
+
+            <div id="sync-result" class="mt-3" style="display: none;"></div>
+        </div>
+
+        <!-- Or Sync by Session Selection -->
+        <div class="card border-0 p-3 p-md-4"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <h5 style="color: #E55000;" class="mb-3">
+                <i class="bi bi-collection"></i> Sync Selected Sessions
+            </h5>
+            <p style="color: #888888; font-size: 0.85rem;">
+                Or select sessions from your existing analyses:
+            </p>
+
+            {% if sessions %}
+            <form id="sync-select-form">
+                <div class="mb-3" style="max-height: 300px; overflow-y: auto;">
+                    {% for s in sessions %}
+                    <div class="form-check mb-1">
+                        <input class="form-check-input session-checkbox" type="checkbox"
+                               value="{{ s.id }}" id="session-{{ s.id }}"
+                               style="border-color: #2A2A2A;">
+                        <label class="form-check-label small" for="session-{{ s.id }}" style="color: #C2C2C2;">
+                            {{ s.video_name }} — {{ s.date[:10] }} ({{ s.shots }} shots)
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button type="submit" class="btn btn-crease" id="sync-select-btn">
+                    <i class="bi bi-arrow-repeat"></i> Sync Selected
+                </button>
+            </form>
+            <div id="sync-select-result" class="mt-3" style="display: none;"></div>
+            {% else %}
+            <p style="color: #888888; font-style: italic;">No sessions found. Upload and analyse first.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function addCodeInput() {
+    const container = document.getElementById('code-inputs');
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+        <input type="text" class="form-control form-control-dark code-input"
+               placeholder="e.g. XK9M2P" maxlength="6" required
+               style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2; font-family: monospace; letter-spacing: 3px; text-transform: uppercase;">
+        <button class="btn btn-outline-crease" type="button" onclick="this.closest('.input-group').remove()"
+                style="border: 1px solid #2A2A2A;">
+            <i class="bi bi-x"></i>
+        </button>
+    `;
+    container.appendChild(div);
+}
+
+// Sync by codes
+document.getElementById('sync-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    const codes = Array.from(document.querySelectorAll('.code-input'))
+        .map(inp => inp.value.trim().toUpperCase())
+        .filter(c => c.length === 6);
+
+    if (codes.length < 2) {
+        alert('Enter at least 2 session codes');
+        return;
+    }
+
+    const resultDiv = document.getElementById('sync-result');
+    resultDiv.style.display = 'block';
+    resultDiv.innerHTML = '<p style="color: #888888;"><i class="bi bi-arrow-repeat"></i> Syncing...</p>';
+
+    const btn = document.getElementById('sync-btn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Syncing...';
+
+    fetch('/api/sync-multi-cam', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({session_codes: codes})
+    })
+    .then(r => r.json())
+    .then(data => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync Recordings';
+        if (data.error) {
+            resultDiv.innerHTML = '<div class="alert alert-danger py-2 px-3 mb-0" style="background: #2A0A0A; border: 1px solid #E55000; color: #E55000; border-radius: 6px;"><i class="bi bi-exclamation-triangle"></i> ' + data.error + '</div>';
+        } else {
+            let html = '<div class="p-3 rounded-3" style="background: #0A0A0A; border: 1px solid #2A2A2A;">';
+            html += '<h6 style="color: #4CAF50;"><i class="bi bi-check-circle"></i> Sync Complete</h6>';
+            html += '<p style="color: #888888; font-size: 0.85rem;">' + data.num_cameras + ' cameras synced. Reference: ' + data.reference.split('/').pop() + '</p>';
+            html += '<table class="table table-dark table-sm" style="font-size: 0.8rem;">';
+            html += '<thead><tr><th>Camera</th><th>Offset (s)</th></tr></thead><tbody>';
+            data.cameras.forEach(function(cam) {
+                html += '<tr><td>' + cam.video_name + '</td><td>' + cam.offset_sec.toFixed(3) + '</td></tr>';
+            });
+            html += '</tbody></table>';
+            html += '</div>';
+            resultDiv.innerHTML = html;
+        }
+    })
+    .catch(err => {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync Recordings';
+        resultDiv.innerHTML = '<div class="alert alert-danger py-2 px-3 mb-0" style="background: #2A0A0A; border: 1px solid #E55000; color: #E55000; border-radius: 6px;"><i class="bi bi-exclamation-triangle"></i> Error: ' + err.message + '</div>';
+    });
+});
+
+// Sync by session selection
+const selectForm = document.getElementById('sync-select-form');
+if (selectForm) {
+    selectForm.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const checked = Array.from(document.querySelectorAll('.session-checkbox:checked'))
+            .map(cb => cb.value);
+
+        if (checked.length < 2) {
+            alert('Select at least 2 sessions');
+            return;
+        }
+
+        const resultDiv = document.getElementById('sync-select-result');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<p style="color: #888888;"><i class="bi bi-arrow-repeat"></i> Syncing...</p>';
+
+        const btn = document.getElementById('sync-select-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Syncing...';
+
+        fetch('/api/sync-multi-cam', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({session_ids: checked})
+        })
+        .then(r => r.json())
+        .then(data => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync Selected';
+            if (data.error) {
+                resultDiv.innerHTML = '<div class="alert alert-danger py-2 px-3 mb-0" style="background: #2A0A0A; border: 1px solid #E55000; color: #E55000; border-radius: 6px;"><i class="bi bi-exclamation-triangle"></i> ' + data.error + '</div>';
+            } else {
+                let html = '<div class="p-3 rounded-3" style="background: #0A0A0A; border: 1px solid #2A2A2A;">';
+                html += '<h6 style="color: #4CAF50;"><i class="bi bi-check-circle"></i> Sync Complete</h6>';
+                html += '<p style="color: #888888; font-size: 0.85rem;">' + data.num_cameras + ' cameras synced.</p>';
+                html += '<table class="table table-dark table-sm" style="font-size: 0.8rem;">';
+                html += '<thead><tr><th>Camera</th><th>Offset (s)</th></tr></thead><tbody>';
+                data.cameras.forEach(function(cam) {
+                    html += '<tr><td>' + cam.video_name + '</td><td>' + cam.offset_sec.toFixed(3) + '</td></tr>';
+                });
+                html += '</tbody></table>';
+                html += '</div>';
+                resultDiv.innerHTML = html;
+            }
+        })
+        .catch(err => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="bi bi-arrow-repeat"></i> Sync Selected';
+            resultDiv.innerHTML = '<div class="alert alert-danger py-2 px-3 mb-0" style="background: #2A0A0A; border: 1px solid #E55000; color: #E55000; border-radius: 6px;"><i class="bi bi-exclamation-triangle"></i> Error: ' + err.message + '</div>';
+        });
+    });
+}
+</script>
+{% endblock %}

@@ -477,14 +477,30 @@ def compress_video_only(video_path, output_path=None, video_bitrate="500k"):
 
 def generate_full_video(video_path, session_data, report_data,
                         output_path=None, video_bitrate="500k",
-                        voice="en-GB-RyanNeural"):
-    """Full pipeline: script -> speech -> topic overlays -> compress + audio."""
+                        voice="en-GB-RyanNeural",
+                        coaching_script=None, player_context=None):
+    """Full pipeline: script -> speech -> topic overlays -> compress + audio.
+
+    Args:
+        video_path: Path to input (already-annotated) video
+        session_data: Full analysis result dict
+        report_data: Coaching report dict
+        output_path: Where to save the final video
+        video_bitrate: Target bitrate (e.g. '500k')
+        voice: edge-tts voice name
+        coaching_script: Pre-generated script (if None, uses default)
+        player_context: Dict with 'player_id', 'label', 'session_type', etc.
+    """
     if output_path is None:
         base, ext = os.path.splitext(video_path)
         output_path = f"{base}_coached{ext}"
 
     print("Step 1: Writing conversational coaching script...")
-    script = generate_coaching_script(session_data, report_data)
+    if coaching_script:
+        script = coaching_script
+        print(f"  Using custom script ({len(coaching_script)} chars)")
+    else:
+        script = generate_coaching_script(session_data, report_data)
 
     print("Step 2: Converting to natural speech...")
     audio_fd, audio_path = tempfile.mkstemp(suffix=".mp3")

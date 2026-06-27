@@ -1,28 +1,50 @@
 # =============================================================================
-# Render Blueprint — the CREASE Batting Lab
+# Render Blueprint — the CREASE Batting Lab (SaaS Edition)
 # =============================================================================
 # Deploy button:
-#   https://render.com/deploy?repo=https://github.com/maneeshshah-ux/the-crease-batting-lab
-#
-# 1. Click the deploy button above (or connect Render to your repo manually)
-# 2. Render builds using the Dockerfile and deploys
+#   https://render.com/deploy?repo=https://github.com/YOUR_USER/the-crease-batting-lab
 # =============================================================================
 
 services:
   - type: web
     name: the-crease-batting-lab
     env: docker
-    repo: https://github.com/maneeshshah-ux/the-crease-batting-lab
+    repo: https://github.com/YOUR_USER/the-crease-batting-lab
     branch: main
-    plan: free
+    plan: free  # Upgrade to "starter" ($7/mo) for persistent disk
     dockerfilePath: ./Dockerfile
 
-    # Render injects the PORT env var automatically; gunicorn reads it
     envVars:
       - key: PYTHONUNBUFFERED
         value: "1"
       - key: SECRET_KEY
         generateValue: true
+      - key: SITE_DOMAIN
+        value: https://the-crease-batting-lab.onrender.com
+      - key: DEBUG
+        value: "0"
+      - key: DEBUG_AUTH
+        value: "0"
+      - key: SESSION_COOKIE_SECURE
+        value: "true"
 
-    # Health check path
+      # Supabase — set these in Render dashboard (not in repo!)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+
+      # Stripe — set these in Render dashboard
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_PRO
+        sync: false
+      - key: STRIPE_PRICE_ENTERPRISE
+        sync: false
+
+    # Health check
     healthCheckPath: /

@@ -99,6 +99,8 @@ HEAD_STABILITY_PLAYERS = {
 # KNEE BEND (front knee angle at contact, degrees)
 # From cricket biomechanics research.
 # 180° = straight leg, 90° = deep knee bend
+#
+# SIDE-ON ranges (reference standard):
 # ============================================================
 FRONT_KNEE_BENCHMARKS = {
     "too_straight": {
@@ -123,29 +125,180 @@ FRONT_KNEE_BENCHMARKS = {
     },
 }
 
+# FRONT-ON ranges (bowler's end camera)
+# The same physical knee bend projects ~15-20° straighter in front-on 2D:
+#   ideal drive (120-144° side-on) → reads as 145-165° front-on
+#   good defensive (145-169° side-on) → reads as 160-178° front-on
+FRONT_ON_FRONT_KNEE_BENCHMARKS = {
+    "too_straight": {
+        "range": (176, 180),
+        "note": "Leg appears nearly straight from front. Limited power generation through the shot.",
+    },
+    "good_defensive": {
+        "range": (160, 175),
+        "note": "Good knee bend visible from front. Solid base.",
+    },
+    "ideal_drive": {
+        "range": (145, 159),
+        "note": "Ideal knee bend for driving. Low to the ball without over-bending.",
+    },
+    "deep_bend": {
+        "range": (125, 144),
+        "note": "Deep knee bend visible from front. Typically for spin bowling.",
+    },
+    "extreme": {
+        "range": (0, 124),
+        "note": "Extreme knee bend — very low stance. May compromise balance against pace.",
+    },
+}
+
 
 # ============================================================
-# SPINE ANGLE AT CONTACT (degrees from horizontal)
-# 180° = perfectly upright, 90° = parallel to ground
+# SPINE ANGLE AT CONTACT (degrees from vertical)
+# 0° = perfectly upright, 90° = parallel to ground
+#
+# SIDE-ON ranges (reference standard):
 # ============================================================
 SPINE_ANGLE_BENCHMARKS = {
     "upright": {
-        "range": (170, 180),
+        "range": (0, 10),
         "note": "Very upright. Good for back-foot play but hard to reach full-length balls.",
     },
     "balanced": {
-        "range": (155, 169),
+        "range": (11, 22),
         "note": "Ideal. Head over the ball, weight forward, eyes level.",
     },
     "lunging": {
-        "range": (140, 154),
+        "range": (23, 35),
         "note": "Leaning forward. You're reaching for the ball — balance compromised.",
     },
     "falling": {
-        "range": (0, 139),
+        "range": (36, 90),
         "note": "Head is past the front knee. You're falling into the shot. Vulnerable to movement.",
     },
 }
+
+# FRONT-ON spine angle ranges
+# Forward lean appears smaller from front-on view
+FRONT_ON_SPINE_ANGLE_BENCHMARKS = {
+    "upright": {
+        "range": (0, 5),
+        "note": "Very upright from front. Good for back-foot but hard to reach length balls.",
+    },
+    "balanced": {
+        "range": (6, 16),
+        "note": "Ideal forward lean visible from front. Head position looks solid.",
+    },
+    "lunging": {
+        "range": (17, 28),
+        "note": "Leaning forward from front view. Balance may be compromised.",
+    },
+    "falling": {
+        "range": (29, 90),
+        "note": "Significant forward lean from front. Falling into the shot — vulnerable to movement.",
+    },
+}
+
+
+# View-aware lookup
+# Angled (~30°) uses intermediate ranges between side and front-on
+ANGLED_FRONT_KNEE_BENCHMARKS = {
+    "too_straight": {
+        "range": (173, 180),
+        "note": "Leg appears fairly straight from this angle. Bend the knee more for power.",
+    },
+    "good_defensive": {
+        "range": (152, 172),
+        "note": "Good knee bend visible at this angle. Solid base for defensive play.",
+    },
+    "ideal_drive": {
+        "range": (135, 151),
+        "note": "Ideal knee bend for driving. Good weight transfer position.",
+    },
+    "deep_bend": {
+        "range": (115, 134),
+        "note": "Deep knee bend from this angle. Good for spin, may struggle against pace.",
+    },
+    "extreme": {
+        "range": (0, 114),
+        "note": "Extreme knee bend. Very low stance.",
+    },
+}
+
+ANGLED_SPINE_ANGLE_BENCHMARKS = {
+    "upright": {
+        "range": (0, 7),
+        "note": "Quite upright from this angle. Good for back-foot but reaching forward may be hard.",
+    },
+    "balanced": {
+        "range": (8, 20),
+        "note": "Ideal forward lean. Head position looks solid from this angle.",
+    },
+    "lunging": {
+        "range": (21, 32),
+        "note": "Leaning forward. Balance may be compromised on driving shots.",
+    },
+    "falling": {
+        "range": (33, 90),
+        "note": "Significant forward lean. Falling into the shot.",
+    },
+}
+
+
+VIEW_KNEE_BENCHMARKS = {
+    "side_off": FRONT_KNEE_BENCHMARKS,
+    "side_leg": FRONT_KNEE_BENCHMARKS,
+    "front_on": FRONT_ON_FRONT_KNEE_BENCHMARKS,
+    "angled": ANGLED_FRONT_KNEE_BENCHMARKS,
+    "behind": FRONT_ON_FRONT_KNEE_BENCHMARKS,
+}
+
+VIEW_SPINE_BENCHMARKS = {
+    "side_off": SPINE_ANGLE_BENCHMARKS,
+    "side_leg": SPINE_ANGLE_BENCHMARKS,
+    "front_on": FRONT_ON_SPINE_ANGLE_BENCHMARKS,
+    "angled": ANGLED_SPINE_ANGLE_BENCHMARKS,
+    "behind": FRONT_ON_SPINE_ANGLE_BENCHMARKS,
+}
+
+
+def get_knee_assessment(angle, camera_view="side_off"):
+    """
+    Assess front knee bend angle, view-aware.
+
+    Args:
+        angle: measured knee angle in degrees
+        camera_view: "side_off", "side_leg", "front_on", or "behind"
+    """
+    benchmarks = VIEW_KNEE_BENCHMARKS.get(camera_view, FRONT_KNEE_BENCHMARKS)
+    for level, data in benchmarks.items():
+        lo, hi = data["range"]
+        if lo <= angle <= hi:
+            return {
+                "level": level,
+                "note": data["note"],
+                "camera_view": camera_view,
+            }
+    # Fallback — find nearest
+    if angle < benchmarks["extreme"]["range"][0]:
+        return {"level": "extreme", "note": benchmarks["extreme"]["note"], "camera_view": camera_view}
+    return {"level": "too_straight", "note": benchmarks["too_straight"]["note"], "camera_view": camera_view}
+
+
+def get_spine_assessment(angle, camera_view="side_off"):
+    """
+    Assess spine lean angle, view-aware.
+    """
+    benchmarks = VIEW_SPINE_BENCHMARKS.get(camera_view, SPINE_ANGLE_BENCHMARKS)
+    for level, data in benchmarks.items():
+        lo, hi = data["range"]
+        if lo <= angle <= hi:
+            return {
+                "level": level,
+                "note": data["note"],
+                "camera_view": camera_view,
+            }
+    return {"level": "balanced", "note": benchmarks["balanced"]["note"], "camera_view": camera_view}
 
 
 def get_bat_speed_benchmark(avg_kmh, peak_kmh):
@@ -222,43 +375,4 @@ def get_head_stability_assessment(score):
     }
 
 
-def get_knee_assessment(angle):
-    """
-    Assess front knee bend angle.
-    """
-    if angle >= 170:
-        level = "too_straight"
-    elif angle >= 145:
-        level = "good_defensive"
-    elif angle >= 120:
-        level = "ideal_drive"
-    elif angle >= 90:
-        level = "deep_bend"
-    else:
-        level = "extreme"
 
-    bench = FRONT_KNEE_BENCHMARKS[level]
-    return {
-        "level": level,
-        "note": bench["note"],
-    }
-
-
-def get_spine_assessment(angle):
-    """
-    Assess spine lean angle.
-    """
-    if angle >= 170:
-        level = "upright"
-    elif angle >= 155:
-        level = "balanced"
-    elif angle >= 140:
-        level = "lunging"
-    else:
-        level = "falling"
-
-    bench = SPINE_ANGLE_BENCHMARKS[level]
-    return {
-        "level": level,
-        "note": bench["note"],
-    }

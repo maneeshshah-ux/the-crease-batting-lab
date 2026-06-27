@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Create Account — the CREASE Batting Lab{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center mt-4 mt-md-5">
+    <div class="col-11 col-sm-8 col-md-6 col-lg-4">
+        <div class="card border-0 p-3 p-md-4" style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="text-center mb-4">
+                <img src="{{ url_for('static', filename='the_crease_logo.png') }}"
+                     alt="the CREASE" height="48" class="mb-2">
+                <h4 class="mb-1" style="color: #E55000;">Create Account</h4>
+                <p style="color: #888888; font-size: 0.9rem;">Start your batting analysis journey</p>
+            </div>
+
+            {% if error %}
+            <div class="alert alert-danger py-2 small" style="background: #2A0A0A; border: 1px solid #E55000; color: #FF8888;">
+                {{ error }}
+            </div>
+            {% endif %}
+
+            {% if not supabase_configured %}
+            <div class="alert alert-warning py-2 small" style="background: #1A1A00; border: 1px solid #FFD700; color: #FFD700;">
+                <i class="bi bi-exclamation-triangle"></i>
+                Authentication is not configured yet.
+            </div>
+            {% endif %}
+
+            <form method="POST" action="{{ url_for('auth.signup') }}">
+                <div class="mb-3">
+                    <label for="full_name" class="form-label small" style="color: #AAAAAA;">Full Name</label>
+                    <input type="text" class="form-control form-control-dark" id="full_name" name="full_name"
+                           placeholder="Your name"
+                           style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                </div>
+                <div class="mb-3">
+                    <label for="email" class="form-label small" style="color: #AAAAAA;">Email</label>
+                    <input type="email" class="form-control form-control-dark" id="email" name="email"
+                           placeholder="you@example.com" required
+                           style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                </div>
+                <div class="mb-3">
+                    <label for="role" class="form-label small" style="color: #AAAAAA;">I am a...</label>
+                    <select class="form-select form-select-dark" id="role" name="role"
+                            style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                        <option value="player">Player — I want to analyse my own batting</option>
+                        <option value="coach">Coach / Academy — I manage multiple players</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label for="password" class="form-label small" style="color: #AAAAAA;">Password</label>
+                    <input type="password" class="form-control form-control-dark" id="password" name="password"
+                           placeholder="Min 8 characters" required minlength="8"
+                           style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                </div>
+                <div class="mb-3">
+                    <label for="confirm_password" class="form-label small" style="color: #AAAAAA;">Confirm Password</label>
+                    <input type="password" class="form-control form-control-dark" id="confirm_password"
+                           name="confirm_password" placeholder="Repeat password" required minlength="8"
+                           style="background: #0A0A0A; border: 1px solid #2A2A2A; color: #C2C2C2;">
+                </div>
+                <button type="submit" class="btn btn-crease w-100">
+                    <i class="bi bi-person-plus"></i> Create Account
+                </button>
+            </form>
+
+            <hr style="border-color: #2A2A2A;">
+
+            <div class="text-center">
+                <p class="mb-0" style="color: #888888; font-size: 0.85rem;">
+                    Already have an account?
+                    <a href="{{ url_for('auth.login') }}" style="color: #E55000; text-decoration: none;">
+                        Sign in
+                    </a>
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
