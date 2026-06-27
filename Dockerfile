@@ -58,4 +58,4 @@ EXPOSE 5005
 # ---------------------------------------------------------------------------
 # Start with Gunicorn (production-grade WSGI server)
 # ---------------------------------------------------------------------------
-CMD ["gunicorn", "--bind", "0.0.0.0:5005", "--workers", "2", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5005", "--workers", "1", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "app:app"]
