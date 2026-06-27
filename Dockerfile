@@ -58,5 +58,4 @@ EXPOSE 5005
 # ---------------------------------------------------------------------------
 # Start with Gunicorn (production-grade WSGI server)
 # ---------------------------------------------------------------------------
-# Use $PORT if set (Render injects this), default 5005 for local dev
-CMD gunicorn --bind 0.0.0.0:${PORT:-5005} --workers 1 --timeout 300 --access-logfile - --error-logfile - app:app
+CMD ["gunicorn", "--bind", "0.0.0.0:5005", "--workers", "1", "--timeout", "300", "--access-logfile", "-", "--error-logfile", "-", "app:app"]

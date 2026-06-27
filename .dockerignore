@@ -1,0 +1,22 @@
+# Ignore large media and data files that bloats the Docker image
+Batting Videos/
+uploads/
+frames/
+sessions/
+reports/
+*.mp4
+*.mov
+*.avi
+*.webm
+*.mkv
+
+# Ignore local dev artifacts
+.git/
+__pycache__/
+*.pyc
+.env
+.DS_Store
+.pytest_cache/
+*.apk
+*.keystore
+node_modules/
