@@ -20,9 +20,27 @@ class MetricsCalculator:
     Computes biomechanical and performance metrics for batting analysis.
     """
 
-    def __init__(self, batting_hand="right", fps=30):
+    @staticmethod
+    def _scalar(x):
+        """
+        Safely convert a numpy value to a Python scalar.
+
+        Works with numpy 0-d arrays, numpy scalars (float64, int32, etc.),
+        and plain Python int/float. Raises TypeError if x is a multi-element
+        array (which should never happen in normal operation).
+        """
+        if isinstance(x, np.ndarray):
+            return x.item() if x.ndim == 0 else float(x)
+        # numpy scalars (like np.float64, np.int32) need .item() too
+        if isinstance(x, (np.floating, np.integer, np.complexfloating)):
+            return x.item()
+        return float(x) if not isinstance(x, str) else x
+
+    def __init__(self, batting_hand="right", fps=30, camera_view="side_off"):
         self.batting_hand = batting_hand
         self.fps = fps
+        self.camera_view = camera_view  # "side_off", "side_leg", "front_on", "behind"
+        self._setup_view_ranges()
 
         if batting_hand == "right":
             self.front_shoulder = "LEFT_SHOULDER"
@@ -59,6 +77,77 @@ class MetricsCalculator:
             self.front_heel = "RIGHT_HEEL"
             self.back_heel = "LEFT_HEEL"
 
+    def _setup_view_ranges(self):
+        """
+        Set coaching reference ranges based on camera view.
+
+        Different camera angles foreshorten or distort specific angles.
+        Side-on is the reference standard. Front-on and behind-the-bowler
+        views need adjusted ranges because the same physical position
+        projects differently in 2D.
+
+        View → effect on key metrics:
+          side_off / side_leg:  standard reference
+          front_on:             knee bend appears straighter,
+                                spine angle appears more upright,
+                                shoulder angle is more informative
+          behind:               similar to front-on but mirrored
+        """
+        is_front = self.camera_view in ("front_on", "behind")
+        is_angled = self.camera_view == "angled"
+
+        # --- Front knee bend (degrees) ---
+        # Side-on: ideal = 130-150°, front-on: same physical bend
+        #   projects as ~155-170° due to foreshortening
+        # Angled (~30°): partial foreshortening, ranges between side and front
+        if is_front:
+            self.knee_ideal_min = 150
+            self.knee_ideal_max = 172
+            self.knee_warn_low = 135
+            self.knee_warn_high = 178
+        elif is_angled:
+            # ~30°: between side and front
+            self.knee_ideal_min = 140
+            self.knee_ideal_max = 165
+            self.knee_warn_low = 128
+            self.knee_warn_high = 174
+        else:
+            self.knee_ideal_min = 130
+            self.knee_ideal_max = 155
+            self.knee_warn_low = 120
+            self.knee_warn_high = 160  # matches original hardcoded threshold
+
+        # --- Spine angle (degrees from vertical) ---
+        # Side-on: ideal forward lean = 15-25°
+        # Front-on: forward lean projects as smaller angle
+        if is_front:
+            self.spine_ideal_min = 5
+            self.spine_ideal_max = 18
+            self.spine_warn_low = 2
+            self.spine_warn_high = 25
+        elif is_angled:
+            # ~30°: partial foreshortening
+            self.spine_ideal_min = 8
+            self.spine_ideal_max = 22
+            self.spine_warn_low = 4
+            self.spine_warn_high = 30
+        else:
+            self.spine_ideal_min = 12
+            self.spine_ideal_max = 28
+            self.spine_warn_low = 10  # matches original hardcoded threshold
+            self.spine_warn_high = 30  # matches original hardcoded threshold
+
+        # --- Front elbow angle (degrees) ---
+        if is_front:
+            self.elbow_ideal_min = 145
+            self.elbow_ideal_max = 165
+        elif is_angled:
+            self.elbow_ideal_min = 142
+            self.elbow_ideal_max = 162
+        else:
+            self.elbow_ideal_min = 140
+            self.elbow_ideal_max = 160  # matches original hardcoded threshold
+
     @staticmethod
     def _angle_between(p1, p2, p3):
         """
@@ -80,7 +169,7 @@ class MetricsCalculator:
             return None
 
         cos_angle = np.clip(dot / norm, -1.0, 1.0)
-        return float(np.degrees(np.arccos(cos_angle)))
+        return float(np.degrees(np.arccos(cos_angle)).item())
 
     @staticmethod
     def _distance(p1, p2):
@@ -160,7 +249,7 @@ class MetricsCalculator:
         if l_s and r_s:
             shoulder_dy = l_s["pixel_y"] - r_s["pixel_y"]
             shoulder_dx = l_s["pixel_x"] - r_s["pixel_x"]
-            m["shoulder_angle"] = float(np.degrees(np.arctan2(shoulder_dy, shoulder_dx)))
+            m["shoulder_angle"] = self._scalar(np.degrees(np.arctan2(shoulder_dy, shoulder_dx)))
 
         # Hip angle (horizontal tilt)
         l_h = landmarks.get("LEFT_HIP")
@@ -168,7 +257,7 @@ class MetricsCalculator:
         if l_h and r_h:
             hip_dy = l_h["pixel_y"] - r_h["pixel_y"]
             hip_dx = l_h["pixel_x"] - r_h["pixel_x"]
-            m["hip_angle"] = float(np.degrees(np.arctan2(hip_dy, hip_dx)))
+            m["hip_angle"] = self._scalar(np.degrees(np.arctan2(hip_dy, hip_dx)))
 
         # Spine angle (angle of the back from vertical)
         nose = landmarks.get("NOSE")
@@ -183,7 +272,7 @@ class MetricsCalculator:
             spine_dx = nose["pixel_x"] - mid_hip["pixel_x"]
             spine_dy = nose["pixel_y"] - mid_hip["pixel_y"]
             # Angle from vertical
-            m["spine_angle"] = float(np.degrees(np.arctan2(abs(spine_dx), spine_dy)))
+            m["spine_angle"] = self._scalar(np.degrees(np.arctan2(abs(spine_dx), spine_dy)))
 
         # --- Head position ---
         if nose:
@@ -230,7 +319,7 @@ class MetricsCalculator:
                         prev.get("head_position_x") is not None):
                     head_dx = curr["head_position_x"] - prev["head_position_x"]
                     head_dy = curr["head_position_y"] - prev["head_position_y"]
-                    curr["head_movement"] = float(np.sqrt(head_dx**2 + head_dy**2))
+                    curr["head_movement"] = self._scalar(np.sqrt(head_dx**2 + head_dy**2))
                 else:
                     curr["head_movement"] = 0
 
@@ -261,26 +350,26 @@ class MetricsCalculator:
         for key in angle_keys:
             values = [m[key] for m in all_metrics if m.get(key) is not None]
             if values:
-                summary[f"avg_{key}"] = round(float(np.mean(values)), 1)
-                summary[f"min_{key}"] = round(float(np.min(values)), 1)
-                summary[f"max_{key}"] = round(float(np.max(values)), 1)
-                summary[f"std_{key}"] = round(float(np.std(values)), 1)
+                summary[f"avg_{key}"] = round(self._scalar(np.mean(values)), 1)
+                summary[f"min_{key}"] = round(self._scalar(np.min(values)), 1)
+                summary[f"max_{key}"] = round(self._scalar(np.max(values)), 1)
+                summary[f"std_{key}"] = round(self._scalar(np.std(values)), 1)
 
         # Head stability (lower = more stable)
         head_movements = [m.get("head_movement", 0) for m in all_metrics
                           if m.get("head_movement") is not None]
         if head_movements:
-            summary["avg_head_movement"] = round(float(np.mean(head_movements)), 2)
-            summary["max_head_movement"] = round(float(np.max(head_movements)), 2)
+            summary["avg_head_movement"] = round(self._scalar(np.mean(head_movements)), 2)
+            summary["max_head_movement"] = round(self._scalar(np.max(head_movements)), 2)
             summary["head_stability_score"] = round(
-                100 / (1 + float(np.mean(head_movements))), 1
+                100 / (1 + self._scalar(np.mean(head_movements))), 1
             )
 
         # Stance width
         widths = [m["stance_width"] for m in all_metrics
                   if m.get("stance_width") is not None]
         if widths:
-            summary["avg_stance_width"] = round(float(np.mean(widths)), 1)
+            summary["avg_stance_width"] = round(self._scalar(np.mean(widths)), 1)
 
         return summary
 
@@ -288,24 +377,28 @@ class MetricsCalculator:
         """
         Generate automated coaching observations from metrics.
 
+        Adjusts reference ranges based on camera_view so that tips remain
+        accurate regardless of whether the video was shot side-on or front-on.
+
         Returns list of dicts: {category, observation, severity, suggestion}
         """
         tips = []
+        view_label = self._view_label()
 
-        # Front knee bend check
+        # Front knee bend check — using camera-aware ranges
         if metrics_summary.get("avg_front_knee_angle"):
             avg = metrics_summary["avg_front_knee_angle"]
-            if avg > 160:
+            if avg > self.knee_warn_high:
                 tips.append({
                     "category": "knee_bend",
-                    "observation": "Front knee is too straight (%.0f°). Limited knee bend reduces power generation." % avg,
+                    "observation": "Front knee appears too straight (%.0f° from %s view). Limited knee bend reduces power generation." % (avg, view_label),
                     "severity": "medium",
-                    "suggestion": "Work on getting your front knee more bent — aim for 130-150° at contact. This helps you get to the pitch of the ball and drive with power.",
+                    "suggestion": "Work on getting your front knee more bent — aim for %.0f-%.0f° from this angle. This helps you get to the pitch of the ball and drive with power." % (self.knee_ideal_min, self.knee_ideal_max),
                 })
-            elif avg < 120:
+            elif avg < self.knee_warn_low:
                 tips.append({
                     "category": "knee_bend",
-                    "observation": "Front knee is very bent (%.0f°). May cause you to be too low." % avg,
+                    "observation": "Front knee appears very bent (%.0f° from %s view). May cause you to be too low." % (avg, view_label),
                     "severity": "low",
                     "suggestion": "You're getting low which is good for spin, but ensure you're not over-bending. Check balance at point of contact.",
                 })
@@ -340,31 +433,31 @@ class MetricsCalculator:
                         "suggestion": None,
                     })
 
-        # Elbow angle
+        # Elbow angle — camera-aware
         if metrics_summary.get("avg_front_elbow_angle"):
             avg = metrics_summary["avg_front_elbow_angle"]
-            if avg > 160:
+            if avg > self.elbow_ideal_max:
                 tips.append({
                     "category": "elbow_position",
-                    "observation": "Front elbow is very straight (%.0f°). May limit your ability to control the bat through the line." % avg,
+                    "observation": "Front elbow appears straight (%.0f° from %s view). May limit control through the line." % (avg, view_label),
                     "severity": "medium",
-                    "suggestion": "Keep the front elbow slightly bent (140-155°) at point of contact. This gives you better bat control and allows for softer hands.",
+                    "suggestion": "Keep the front elbow slightly bent (%.0f-%.0f° at contact). This gives you better bat control and allows for softer hands." % (self.elbow_ideal_min, self.elbow_ideal_max),
                 })
 
-        # Spine angle
+        # Spine angle — camera-aware
         if metrics_summary.get("avg_spine_angle"):
             avg = metrics_summary["avg_spine_angle"]
-            if avg < 10:
+            if avg < self.spine_warn_low:
                 tips.append({
                     "category": "posture",
-                    "observation": "Spine is very upright (%.0f° from vertical). May cause you to play away from the body." % avg,
+                    "observation": "Spine appears very upright (%.0f° from %s view). May cause playing away from the body." % (avg, view_label),
                     "severity": "medium",
-                    "suggestion": "Bend slightly more from the waist. A 15-25° forward lean helps you get closer to the pitch of the ball and improves your drive.",
+                    "suggestion": "Bend slightly more from the waist. A %.0f-%.0f° forward lean helps you get closer to the pitch and improves your drive." % (self.spine_ideal_min, self.spine_ideal_max),
                 })
-            elif avg > 30:
+            elif avg > self.spine_warn_high:
                 tips.append({
                     "category": "posture",
-                    "observation": "Spine is leaning forward significantly (%.0f°). Balance may be compromised." % avg,
+                    "observation": "Spine appears to lean forward significantly (%.0f° from %s view). Balance may be compromised." % (avg, view_label),
                     "severity": "low",
                     "suggestion": "Your forward lean is pronounced. Check that you can recover balance quickly — if you're falling over after the shot, straighten up slightly.",
                 })
@@ -382,3 +475,14 @@ class MetricsCalculator:
            (ideal_max < angle <= ideal_max + warn_range):
             return (0, 255, 255)  # yellow
         return (0, 0, 255)  # red
+
+    def _view_label(self):
+        """Human-readable label for the camera view."""
+        labels = {
+            "side_off": "side-on (off side)",
+            "side_leg": "side-on (leg side)",
+            "front_on": "front-on (bowler's end)",
+            "angled": "~30° angled (narrow nets)",
+            "behind": "behind (wicketkeeper's end)",
+        }
+        return labels.get(self.camera_view, self.camera_view)

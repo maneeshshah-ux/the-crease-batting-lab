@@ -25,13 +25,15 @@ class BatAnalyzer:
     # In normalized coordinates, we use a scaling factor
     BAT_LENGTH_FACTOR = 0.12  # ~12% of frame height
 
-    def __init__(self, batting_hand="right", history_frames=5000):
+    def __init__(self, batting_hand="right", history_frames=5000, camera_view="side_off"):
         """
         Args:
             batting_hand: "right" or "left" handed batter
             history_frames: swing history length
+            camera_view: "side_off", "side_leg", "front_on", or "behind"
         """
         self.batting_hand = batting_hand
+        self.camera_view = camera_view
         self.history = deque(maxlen=history_frames)
         self.swing_phases = []  # detected swing events
 
@@ -311,23 +313,32 @@ class BatAnalyzer:
             avg_shoulder_px = np.mean(shoulder_widths)
             # In a side-on cricket view, shoulders appear narrow (chest depth ~0.25m)
             # In a front-on view, shoulders appear wide (biacromial ~0.40m)
-            # Use the aspect ratio of shoulder width to frame width to decide:
-            # If shoulder < 10% of frame width, it's side view (use chest depth)
-            shoulder_ratio = avg_shoulder_px / frame_w
-            if shoulder_ratio < 0.10:
-                # Side view — shoulders are foreshortened
-                real_shoulder_m = CHEST_DEPTH_M
-                method = "shoulder_chest_depth"
-            else:
-                # Front view — use full shoulder breadth
+            # Use explicit camera_view if provided, otherwise fall back to aspect ratio
+            if self.camera_view in ("front_on", "behind", "angled"):
+                # User explicitly set front-on or angled view
                 real_shoulder_m = BIACROMIAL_M
-                method = "shoulder_width"
+                method = "shoulder_width_explicit"
+                view_source = "user"
+            else:
+                # Auto-detect from aspect ratio
+                shoulder_ratio = avg_shoulder_px / frame_w
+                if shoulder_ratio < 0.10:
+                    # Side view — shoulders are foreshortened
+                    real_shoulder_m = CHEST_DEPTH_M
+                    method = "shoulder_chest_depth"
+                    view_source = "auto_side"
+                else:
+                    # Front view — use full shoulder breadth
+                    real_shoulder_m = BIACROMIAL_M
+                    method = "shoulder_width"
+                    view_source = "auto_front"
 
             px_per_m = avg_shoulder_px / real_shoulder_m
             detail = {
                 "avg_shoulder_px": float(avg_shoulder_px),
                 "real_shoulder_m": real_shoulder_m,
-                "shoulder_frame_ratio": float(shoulder_ratio),
+                "view_source": view_source,
+                "camera_view_hint": self.camera_view,
             }
 
         # Method 4: Fallback to frame height
@@ -435,14 +446,14 @@ class BatAnalyzer:
         if len(clean_speeds) < 3:
             clean_speeds = [s for s in speeds if s > 0][:5]  # fallback
 
-        avg_speed_px = float(np.mean(clean_speeds))
+        avg_speed_px = float(np.mean(clean_speeds).item())
         peak_speed_px = float(max(clean_speeds))
 
         # Also compute "swing average" — only frames where actual
         # swinging occurs (>10 px/frame = ~12 km/h bat tip).
         # This filters out shuffling, grip adjustments, etc.
         swing_speeds = [s for s in clean_speeds if s > 10]
-        swing_avg_px = float(np.mean(swing_speeds)) if len(swing_speeds) > 3 else avg_speed_px
+        swing_avg_px = float(np.mean(swing_speeds).item()) if len(swing_speeds) > 3 else avg_speed_px
 
         result = {
             "kmh_estimated": False,
