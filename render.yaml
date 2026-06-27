@@ -9,7 +9,7 @@ services:
   - type: web
     name: the-crease-batting-lab
     env: docker
-    repo: https://github.com/YOUR_USER/the-crease-batting-lab
+    repo: https://github.com/maneeshshah-ux/the-crease-batting-lab
     branch: main
     plan: free  # Upgrade to "starter" ($7/mo) for persistent disk
     dockerfilePath: ./Dockerfile
