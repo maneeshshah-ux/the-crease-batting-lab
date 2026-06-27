@@ -72,6 +72,7 @@ def no_cache(response):
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, private"
         response.headers["Pragma"] = "no-cache"
         response.headers["Expires"] = "0"
+        response.headers["Clear-Site-Data"] = "\"cache\", \"storage\""
     return response
 
 # In-memory job tracking

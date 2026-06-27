@@ -43,6 +43,8 @@ public class MainActivity extends Activity {
     private boolean isFirstLoad = true;
     private static final String PREFS_NAME = "crease_prefs";
     private static final String KEY_SERVER_URL = "server_url";
+    private static final String APP_VERSION = "1.2.0";
+    private static final String KEY_BUILD_VERSION = "build_version";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -178,7 +180,30 @@ public class MainActivity extends Activity {
 
     private void loadApp() {
         showLoading("Loading the CREASE...");
-        webView.loadUrl(serverUrl);
+
+        // ── Version-based cache busting ──────────────────────────────
+        // If app was updated, nuke ALL stored data so the user sees fresh content.
+        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+        String prevBuild = prefs.getString(KEY_BUILD_VERSION, "");
+        if (!prevBuild.equals(APP_VERSION)) {
+            // Fresh install or app update — wipe everything
+            webView.clearCache(true);
+            webView.clearHistory();
+            webView.clearFormData();
+            CookieManager.getInstance().removeAllCookies(null);
+            CookieManager.getInstance().flush();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                WebStorage.getInstance().deleteAllData();
+            }
+            prefs.edit().putString(KEY_BUILD_VERSION, APP_VERSION).apply();
+        }
+
+        // Append a cache-busting query param to prevent stale page serving
+        String url = serverUrl;
+        String separator = url.contains("?") ? "&" : "?";
+        url += separator + "_cb=" + APP_VERSION.replace(".", "") + "_" + System.currentTimeMillis();
+
+        webView.loadUrl(url);
     }
 
     // File upload support
@@ -331,7 +356,7 @@ public class MainActivity extends Activity {
             case 3:
                 new android.app.AlertDialog.Builder(this)
                     .setTitle("the CREASE Batting Lab")
-                    .setMessage("v1.1.0\n\n" +
+                    .setMessage("v1.2.0\n\n" +
                                "Where every cricketer gets better.\n\n" +
                                "Built with MediaPipe + OpenCV.\n" +
                                "© 2026 the CREASE")
