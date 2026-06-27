@@ -291,10 +291,12 @@ def _run_analysis(job_id, video_path, batting_hand, ball_color, camera_view):
             job["message"] = "Analysis failed"
     except Exception as e:
         job["status"] = "failed"
-        job["error"] = str(e)
+        # Capture full traceback in error message for debugging
+        import io, traceback as tb_mod
+        tb_buf = io.StringIO()
+        tb_mod.print_exc(file=tb_buf)
+        job["error"] = f"[{type(e).__name__}] {str(e)}\n{tb_buf.getvalue()}"
         job["message"] = f"Error: {str(e)}"
-        import traceback
-        traceback.print_exc()
 
 
 # ---------------------------------------------------------------------------
