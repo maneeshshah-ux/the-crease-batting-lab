@@ -499,6 +499,21 @@ PRO_PLAYER_DATABASE: Dict[str, Dict[str, Any]] = {
 }
 
 # ======================================================================
+# HELPER FUNCTIONS
+# ======================================================================
+
+def _make_zone_key(gender: str, role: str, style_tags: List[str]) -> str:
+    """Create a zone key from gender + role + primary style."""
+    primary_style = style_tags[0] if style_tags else "classical"
+    return f"{gender}_{role}_{primary_style}"
+
+
+def get_zone_label(zone_key: str) -> str:
+    """Get a human-readable label for a zone key."""
+    return ZONE_LABELS.get(zone_key, zone_key.replace("_", " ").title())
+
+
+# ======================================================================
 # DERIVED LOOKUPS
 # ======================================================================
 
@@ -516,17 +531,6 @@ for name, data in PRO_PLAYER_DATABASE.items():
     style_tags = data.get("style_tags", ["classical"])
     zone_key = _make_zone_key(gender, role, style_tags)
     PRO_PLAYERS_BY_ZONE[zone_key].append(name)
-
-
-def _make_zone_key(gender: str, role: str, style_tags: List[str]) -> str:
-    """Create a zone key from gender + role + primary style."""
-    primary_style = style_tags[0] if style_tags else "classical"
-    return f"{gender}_{role}_{primary_style}"
-
-
-def get_zone_label(zone_key: str) -> str:
-    """Get a human-readable label for a zone key."""
-    return ZONE_LABELS.get(zone_key, zone_key.replace("_", " ").title())
 
 
 # ======================================================================
