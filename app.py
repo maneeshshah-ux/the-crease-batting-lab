@@ -65,6 +65,15 @@ app.register_blueprint(auth_bp)
 from werkzeug.middleware.proxy_fix import ProxyFix
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
+# Prevent WebView caching — always serve fresh pages
+@app.after_request
+def no_cache(response):
+    if response.content_type and response.content_type.startswith("text/html"):
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate, private"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+    return response
+
 # In-memory job tracking
 analysis_jobs = {}
 
