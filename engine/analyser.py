@@ -29,11 +29,12 @@ class BattingAnalyser:
     """
 
     def __init__(self, batting_hand="right", ball_color="red", fps=None,
-                 frame_step=2):
+                 frame_step=2, camera_view="side_off"):
         self.batting_hand = batting_hand
         self.ball_color = ball_color
         self.fps = fps
         self.frame_step = max(1, frame_step)
+        self.camera_view = camera_view
 
         # Components
         self.pose_estimator = PoseEstimator(
@@ -47,9 +48,11 @@ class BattingAnalyser:
             max_radius=40,
             use_kalman=True,
         )
-        self.bat_analyzer = BatAnalyzer(batting_hand=batting_hand)
+        self.bat_analyzer = BatAnalyzer(batting_hand=batting_hand,
+                                        camera_view=camera_view)
         self.phase_detector = PhaseDetector(batting_hand=batting_hand, fps=fps or 30)
-        self.metrics = MetricsCalculator(batting_hand=batting_hand, fps=fps or 30)
+        self.metrics = MetricsCalculator(batting_hand=batting_hand, fps=fps or 30,
+                                         camera_view=camera_view)
         self.visualizer = Visualizer(batting_hand=batting_hand)
         self.calibration_px_per_m = None  # set after analysis loop
 
