@@ -345,3 +345,9 @@ input:-webkit-autofill:focus {
 .pulse {
     animation: pulse 1.5s ease-in-out infinite;
 }
+
+/* Hide PWA install banner inside native Android app (class injected by WebView) */
+.app-android #pwa-install-banner,
+.app-android .install-banner {
+    display: none !important;
+}
