@@ -222,6 +222,20 @@
         </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <!-- GLOBAL QUICK-UPLOAD FORM — hidden, works from any page       -->
+    <!-- ═══════════════════════════════════════════════════════════════ -->
+    <form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data"
+          id="quick-upload-form" style="display:none;">
+        <input type="file" name="video" id="quick-video-input"
+               accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska">
+        <input type="hidden" name="batting_hand" value="right">
+        <input type="hidden" name="ball_color" value="red">
+        <input type="hidden" name="camera_view" value="side_off">
+        <input type="hidden" name="session_label" value="">
+        <input type="hidden" name="quick_upload" value="1">
+    </form>
+
     <!-- Main content -->
     <main class="container py-3">
         {% block content %}{% endblock %}
@@ -263,6 +277,31 @@
         var b = document.getElementById('pwa-install-banner');
         if (b) b.style.display = 'none';
     }
+
+    // ═══════════════════════════════════════════════════════════════
+    // GLOBAL QUICK UPLOAD — tap anywhere, pick a video, auto-submit
+    // ═══════════════════════════════════════════════════════════════
+    document.addEventListener('DOMContentLoaded', function() {
+        var quickInput = document.getElementById('quick-video-input');
+        var quickForm = document.getElementById('quick-upload-form');
+
+        if (!quickInput || !quickForm) return;
+
+        // Auto-submit when user picks a video
+        quickInput.addEventListener('change', function() {
+            if (this.files && this.files.length > 0) {
+                quickForm.submit();
+            }
+        });
+
+        // Wire up all .quick-upload-zone elements to trigger file picker
+        document.querySelectorAll('.quick-upload-zone').forEach(function(zone) {
+            zone.addEventListener('click', function(e) {
+                e.preventDefault();
+                quickInput.click();
+            });
+        });
+    });
     </script>
     {% block scripts %}{% endblock %}
 </body>

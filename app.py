@@ -26,7 +26,7 @@ from engine.analyser import BattingAnalyser
 from engine.highlight_reel import HighlightReel
 from engine.scorecard_image import ScorecardImage
 from engine.multi_cam_sync import MultiCameraSync, FfmpegNotFoundError
-from engine.pro_comparison import ProComparison
+from engine.pro_comparison import ProComparison, ZonalComparison
 
 # ── Commercial SaaS imports ────────────────────────────────────────────────
 from auth import auth_bp, login_required
@@ -635,6 +635,69 @@ def api_pro_players():
 def api_pro_disclaimer():
     """API: Get the legal disclaimer text."""
     return jsonify({"disclaimer": ProComparison.get_legal_disclaimer()})
+
+
+# ---------------------------------------------------------------------------
+# Zonal Comparison
+# ---------------------------------------------------------------------------
+
+@app.route("/zonal-compare/<session_id>")
+def zonal_compare_view(session_id):
+    """Zonal Comparison page — zone-level + player-level matching."""
+    session_path = SESSION_DIR / f"{session_id}.json"
+    if not session_path.exists():
+        return render_template("error.html",
+                               message=f"Session {session_id} not found"), 404
+    with open(session_path) as f:
+        data = json.load(f)
+
+    try:
+        comparator = ZonalComparison(camera_view=data.get("camera_view", "front_on"))
+        result = comparator.compare(data)
+    except Exception as e:
+        return render_template("error.html",
+                               message=f"Zonal comparison failed: {str(e)}"), 500
+
+    return render_template(
+        "zonal_compare.html",
+        session_id=session_id,
+        session=data,
+        comparison_result=result,
+    )
+
+
+@app.route("/api/zonal-compare/<session_id>")
+def api_zonal_compare(session_id):
+    """API: Get zonal comparison data for a session."""
+    session_path = SESSION_DIR / f"{session_id}.json"
+    if not session_path.exists():
+        return jsonify({"error": "Session not found"}), 404
+    with open(session_path) as f:
+        data = json.load(f)
+
+    try:
+        comparator = ZonalComparison(camera_view=data.get("camera_view", "front_on"))
+        result = comparator.compare(data)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/zonal-compare/zones")
+def api_zonal_zones():
+    """API: List available zones."""
+    zones = ZonalComparison.list_zones()
+    return jsonify({"zones": zones})
+
+
+@app.route("/api/zonal-compare/players")
+def api_zonal_players():
+    """API: List players, optionally filtered by zone/gender/level."""
+    level = request.args.get("level")
+    gender = request.args.get("gender")
+    zone_key = request.args.get("zone")
+    players = ZonalComparison.list_pro_players(level=level, gender=gender, zone_key=zone_key)
+    return jsonify({"players": players, "disclaimer": ProComparison.get_legal_disclaimer()})
 
 
 @app.route("/download/<session_id>/<filetype>")

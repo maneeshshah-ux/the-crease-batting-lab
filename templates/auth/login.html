@@ -61,6 +61,41 @@
             });
             </script>
 
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <!-- SOCIAL LOGIN / OAUTH                                 -->
+            <!-- ═══════════════════════════════════════════════════════ -->
+            <div class="mb-3">
+                <div class="d-flex align-items-center gap-2 mb-2">
+                    <hr style="border-color: #2A2A2A; flex: 1;">
+                    <small style="color: #666666; font-size: 0.7rem;">or continue with</small>
+                    <hr style="border-color: #2A2A2A; flex: 1;">
+                </div>
+
+                <div class="d-flex gap-2">
+                    <a href="{{ url_for('auth.oauth_login', provider='google') }}"
+                       class="btn btn-outline-light flex-fill d-flex align-items-center justify-content-center gap-2 py-2"
+                       style="background: #4285F4; border-color: #4285F4; color: #FFF; font-size: 0.8rem;"
+                       onmouseover="this.style.background='#3367D6'" onmouseout="this.style.background='#4285F4'">
+                        <i class="bi bi-google"></i>
+                        <span class="d-none d-sm-inline">Google</span>
+                    </a>
+                    <a href="{{ url_for('auth.oauth_login', provider='github') }}"
+                       class="btn btn-outline-light flex-fill d-flex align-items-center justify-content-center gap-2 py-2"
+                       style="background: #333333; border-color: #333333; color: #FFF; font-size: 0.8rem;"
+                       onmouseover="this.style.background='#222222'" onmouseout="this.style.background='#333333'">
+                        <i class="bi bi-github"></i>
+                        <span class="d-none d-sm-inline">GitHub</span>
+                    </a>
+                    <a href="{{ url_for('auth.oauth_login', provider='facebook') }}"
+                       class="btn btn-outline-light flex-fill d-flex align-items-center justify-content-center gap-2 py-2"
+                       style="background: #1877F2; border-color: #1877F2; color: #FFF; font-size: 0.8rem;"
+                       onmouseover="this.style.background='#166FE5'" onmouseout="this.style.background='#1877F2'">
+                        <i class="bi bi-facebook"></i>
+                        <span class="d-none d-sm-inline">Facebook</span>
+                    </a>
+                </div>
+            </div>
+
             <hr style="border-color: #2A2A2A;">
 
             <div class="text-center">

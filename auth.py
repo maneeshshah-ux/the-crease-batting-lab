@@ -344,3 +344,71 @@ def callback():
             flash("Authentication failed.", "error")
 
     return redirect(url_for("auth.login"))
+
+
+# ---------------------------------------------------------------------------
+# OAuth / Social Login
+# ---------------------------------------------------------------------------
+
+SUPABASE_AUTH_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+
+SUPPORTED_OAUTH_PROVIDERS = {
+    "google": {
+        "name": "Google",
+        "icon": "bi-google",
+        "color": "#FFFFFF",
+        "bg": "#4285F4",
+        "hover": "#3367D6",
+    },
+    "github": {
+        "name": "GitHub",
+        "icon": "bi-github",
+        "color": "#FFFFFF",
+        "bg": "#333333",
+        "hover": "#222222",
+    },
+    "facebook": {
+        "name": "Facebook",
+        "icon": "bi-facebook",
+        "color": "#FFFFFF",
+        "bg": "#1877F2",
+        "hover": "#166FE5",
+    },
+}
+
+
+@auth_bp.route("/oauth/<provider>")
+def oauth_login(provider):
+    """Redirect to Supabase OAuth for the given provider."""
+    if provider not in SUPPORTED_OAUTH_PROVIDERS:
+        flash(f"Unsupported OAuth provider: {provider}", "error")
+        return redirect(url_for("auth.login"))
+
+    if not SUPABASE_AUTH_URL:
+        flash("OAuth is not configured. Set SUPABASE_URL.", "error")
+        return redirect(url_for("auth.login"))
+
+    # Build redirect URL back to our callback
+    redirect_to = url_for("auth.callback", _external=True)
+
+    # Supabase OAuth authorize URL
+    oauth_url = (
+        f"{SUPABASE_AUTH_URL}/auth/v1/authorize"
+        f"?provider={provider}"
+        f"&redirect_to={redirect_to}"
+    )
+
+    return redirect(oauth_url)
+
+
+@auth_bp.route("/api/oauth-providers")
+def api_oauth_providers():
+    """API: Return available OAuth providers."""
+    return jsonify({
+        "providers": [
+            {"key": k, **v}
+            for k, v in SUPPORTED_OAUTH_PROVIDERS.items()
+        ],
+        "supabase_configured": is_configured(),
+        "supabase_auth_url": bool(SUPABASE_AUTH_URL),
+    })

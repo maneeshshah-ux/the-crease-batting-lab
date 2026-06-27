@@ -75,6 +75,10 @@ public class MainActivity extends Activity {
     }
 
     private void setupWebView() {
+        // Clear all caches to ensure fresh content every time
+        webView.clearCache(true);
+        webView.clearHistory();
+
         // Enable JavaScript
         WebSettings settings = webView.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -87,7 +91,7 @@ public class MainActivity extends Activity {
         settings.setUseWideViewPort(true);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);  // never cache — always fresh
 
         // File upload support
         webView.setWebChromeClient(new WebChromeClient() {

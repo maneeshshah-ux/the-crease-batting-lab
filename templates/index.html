@@ -3,19 +3,6 @@
 {% block title %}the CREASE — AI Cricket Batting Analysis{% endblock %}
 
 {% block content %}
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<!-- QUICK UPLOAD ZONE — Tap once, pick a video, go!            -->
-<!-- ═══════════════════════════════════════════════════════════════ -->
-<form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data"
-      id="quick-upload-form" style="display:none;">
-    <input type="file" name="video" id="quick-video-input"
-           accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska">
-    <input type="hidden" name="batting_hand" value="right">
-    <input type="hidden" name="ball_color" value="red">
-    <input type="hidden" name="camera_view" value="side_off">
-    <input type="hidden" name="session_label" value="">
-</form>
-
 {% if g.user %}
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- LOGGED-IN USER: Dashboard -->

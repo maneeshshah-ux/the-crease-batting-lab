@@ -1,0 +1,519 @@
+{% extends "base.html" %}
+
+{% block title %}Zonal Hero Comparison — the CREASE Batting Lab{% endblock %}
+
+{% block content %}
+{% set result = comparison_result %}
+{% set radar = result.radar_data %}
+{% set zone_radar = result.zone_radar_data %}
+{% set metrics = result.metrics_comparison %}
+{% set gaps = result.gaps %}
+{% set tips = result.coaching_tips %}
+{% set best = result.best_match %}
+{% set best_zone = result.best_zone %}
+{% set zone_summary = result.zone_summary %}
+{% set top_matches = result.top_matches %}
+{% set zone_top = result.zone_top_players %}
+
+<div class="row mb-3">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-1 small" style="background: transparent;">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}" style="color: #888888;">Dashboard</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('session_view', session_id=session_id) }}" style="color: #888888;">Session</a></li>
+                <li class="breadcrumb-item active" style="color: #E55000;">Zonal Hero Compare</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<!-- ================================================================ -->
+<!-- BEST ZONE BANNER -->
+<!-- ================================================================ -->
+<div class="row mb-3">
+    <div class="col-12">
+        {% if best_zone %}
+        <div class="card border-0 overflow-hidden"
+             style="background: linear-gradient(135deg, #0A0A0A, #1A0A00); border: 1px solid #2A2A2A !important;">
+            <div class="card-body p-3 p-md-4">
+                <div class="row g-2 align-items-center">
+                    <div class="col-auto text-center">
+                        <div style="background: #0A0A0A; border: 3px solid #E55000; border-radius: 50%; width: 80px; height: 80px; display: flex; align-items: center; justify-content: center;">
+                            <span style="font-size: 1.8rem; color: #E55000; font-weight: 800;">
+                                {{ best_zone.max_similarity_pct }}%
+                            </span>
+                        </div>
+                        <small style="color: #888888;">Zone Match</small>
+                    </div>
+                    <div class="col">
+                        <div class="d-flex align-items-center gap-2 flex-wrap">
+                            <h4 class="mb-0" style="color: #E55000;">
+                                <i class="bi bi-layers"></i> Your Zone: <strong>{{ best_zone.zone_label }}</strong>
+                            </h4>
+                            <span class="badge" style="background: {% if best.gender == 'female' %}#E91E63{% else %}#4CAF50{% endif %};">
+                                {{ best.gender|title }}
+                            </span>
+                        </div>
+                        <p style="color: #C2C2C2; font-size: 0.85rem; margin-bottom: 0.25rem; margin-top: 0.25rem;">
+                            Top match: <strong style="color: #E55000;">{{ best.name }}</strong>
+                            <span class="badge ms-1" style="background: {% if best.level == 'international' %}#4CAF50{% elif best.level == 'state_pro' %}#2196F3{% else %}#888888{% endif %};">
+                                {{ result.level_match.level_label }}
+                            </span>
+                            <span class="ms-2" style="color: #888888;">
+                                {{ best.similarity_pct }}% similar
+                            </span>
+                        </p>
+                        <small style="color: #999999;">
+                            <i class="bi bi-person"></i> {{ best.style[:100] }}
+                        </small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<div class="row g-3">
+    <!-- ============================================================ -->
+    <!-- LEFT COLUMN                                                    -->
+    <!-- ============================================================ -->
+    <div class="col-12 col-lg-7">
+        <!-- Zone Radar -->
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-diagram-3"></i> You vs Your Zone
+                </h6>
+                <span class="ms-auto badge" style="background: #2A2A2A; color: #C2C2C2; font-size: 0.6rem;">
+                    {% if best_zone %}{{ best_zone.zone_label }}{% endif %}
+                </span>
+            </div>
+            <div class="card-body">
+                <canvas id="zoneRadarChart" height="280"></canvas>
+            </div>
+        </div>
+
+        <!-- Zone Ranking -->
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-bar-chart-steps"></i> Zone Rankings
+                </h6>
+                <span class="ms-auto badge" style="background: #2A2A2A; color: #C2C2C2;">
+                    {{ zone_summary|length }} zones
+                </span>
+            </div>
+            <div class="card-body p-0">
+                {% for zone in zone_summary %}
+                <div class="px-3 py-2 d-flex align-items-center justify-content-between"
+                     style="{% if not loop.last %}border-bottom: 1px solid #1A1A1A;{% endif %}
+                            {% if loop.first %}background: rgba(229,80,0,0.05);{% endif %}">
+                    <div class="d-flex align-items-center gap-2" style="min-width: 0;">
+                        {% if loop.first %}
+                        <span class="badge" style="background: #E55000; color: #FFF; font-size: 0.5rem;">BEST</span>
+                        {% endif %}
+                        <small style="color: #C2C2C2; font-weight: {% if loop.first %}600{% else %}400{% endif %};">
+                            {{ zone.zone_label }}
+                        </small>
+                        <small style="color: #666666; font-size: 0.6rem;">
+                            {{ zone.num_players }} players
+                        </small>
+                    </div>
+                    <div class="d-flex align-items-center gap-2" style="flex-shrink: 0;">
+                        <div class="pill-bar" style="width: 60px; height: 5px;">
+                            <div class="pill-bar-fill"
+                                 style="width: {{ zone.max_similarity_pct }}%; background: {% if loop.first %}#E55000{% elif zone.max_similarity_pct >= 60 %}#FFC107{% else %}#555555{% endif %};">
+                            </div>
+                        </div>
+                        <small style="color: {% if loop.first %}#E55000{% else %}#888888{% endif %}; font-weight: {% if loop.first %}600{% endif %}; min-width: 40px; text-align: right;">
+                            {{ zone.max_similarity_pct }}%
+                        </small>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- Top Players in Best Zone -->
+        {% if best_zone and zone_top and best_zone.zone_key in zone_top %}
+        {% set zone_players = zone_top[best_zone.zone_key] %}
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-people"></i> Top Players — {{ best_zone.zone_label }}
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" style="background: transparent;">
+                    {% for player in zone_players %}
+                    <div class="list-group-item px-3 py-2 d-flex justify-content-between align-items-center"
+                         style="background: transparent; border-color: #1A1A1A; color: #C2C2C2;">
+                        <div>
+                            <span style="color: #E55000; font-weight: 600;">{{ player.name }}</span>
+                            <span class="badge ms-2"
+                                  style="background: {% if player.level == 'international' %}#2E7D32{% elif player.level == 'state_pro' %}#1565C0{% else %}#555555{% endif %}; font-size: 0.55rem;">
+                                {{ player.level|replace('_', ' ')|title }}
+                            </span>
+                        </div>
+                        <div>
+                            <span style="color: #4CAF50; font-weight: 600;">{{ player.similarity_pct }}%</span>
+                            <small style="color: #888888;">match</small>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Metrics Comparison Table -->
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-table"></i> Detailed Comparison vs {{ best.name }}
+                </h6>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-dark table-bordered mb-0" style="background: transparent;">
+                        <thead>
+                            <tr style="color: #E55000;">
+                                <th>Metric</th>
+                                <th class="text-center">You</th>
+                                <th class="text-center">{{ best.name }}</th>
+                                <th class="text-center">Score</th>
+                                <th>Gap</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for m in metrics %}
+                            <tr>
+                                <td style="color: #C2C2C2;">
+                                    <small>{{ m.label }}</small>
+                                    <br><span style="color: #888888; font-size: 0.6rem;">{{ m.description }}</span>
+                                </td>
+                                <td class="text-center" style="color: #E55000;">
+                                    {{ m.user_value }}{{ m.unit }}
+                                </td>
+                                <td class="text-center" style="color: #4CAF50;">
+                                    {{ m.pro_value }}{{ m.unit }}
+                                </td>
+                                <td class="text-center">
+                                    <div class="d-flex align-items-center gap-1 justify-content-center">
+                                        <div class="pill-bar" style="width: 60px; height: 6px;">
+                                            <div class="pill-bar-fill"
+                                                 style="width: {{ m.relative_score }}%; background: {% if m.relative_score >= 80 %}#4CAF50{% elif m.relative_score >= 50 %}#FFC107{% else %}#E55000{% endif %};">
+                                            </div>
+                                        </div>
+                                        <small style="color: {% if m.relative_score >= 80 %}#4CAF50{% elif m.relative_score >= 50 %}#FFC107{% else %}#E55000{% endif %};">
+                                            {{ "%.0f"|format(m.relative_score) }}%
+                                        </small>
+                                    </div>
+                                </td>
+                                <td style="color: {% if m.gap_pct > 0 %}#E74C3C{% else %}#4CAF50{% endif %};">
+                                    <small>
+                                        {% if m.gap_pct > 0 %}
+                                        <i class="bi bi-arrow-down"></i> {{ "%.1f"|format(m.gap_abs) }}{{ m.unit }} behind
+                                        {% elif m.gap_pct < 0 %}
+                                        <i class="bi bi-arrow-up" style="color: #4CAF50;"></i> {{ "%.1f"|format(m.gap_abs|abs) }}{{ m.unit }} ahead
+                                        {% else %}
+                                        <span style="color: #888888;">—</span>
+                                        {% endif %}
+                                    </small>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================================ -->
+    <!-- RIGHT COLUMN                                                  -->
+    <!-- ============================================================ -->
+    <div class="col-12 col-lg-5">
+        <!-- All Players matches (gender filter) -->
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-trophy"></i> Top 10 Matches
+                </h6>
+                <span class="ms-auto badge" style="background: #2A2A2A; color: #C2C2C2;">
+                    <i class="bi bi-gender-{{ best.gender }}"></i> {{ best.gender|title }}
+                </span>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" style="background: transparent;">
+                    {% for player in top_matches %}
+                    <div class="list-group-item px-3 py-2 d-flex justify-content-between align-items-center"
+                         style="background: transparent; border-color: #1A1A1A; color: #C2C2C2;">
+                        <div class="d-flex align-items-center gap-2" style="min-width: 0;">
+                            {% if loop.first %}
+                            <span class="badge" style="background: #E55000; font-size: 0.45rem; padding: 2px 4px;">1</span>
+                            {% else %}
+                            <span style="color: #666666; font-size: 0.7rem; min-width: 16px;">{{ loop.index }}</span>
+                            {% endif %}
+                            <div style="min-width: 0;">
+                                <span style="color: {% if loop.first %}#E55000{% else %}#C2C2C2{% endif %}; font-weight: {% if loop.first %}600{% endif %};">
+                                    {{ player.name }}
+                                </span>
+                                <div>
+                                    <span class="badge"
+                                          style="background: {% if player.level == 'international' %}#2E7D32{% elif player.level == 'state_pro' %}#1565C0{% else %}#555555{% endif %}; font-size: 0.45rem;">
+                                        {{ player.level|replace('_', ' ')|title }}
+                                    </span>
+                                    {% if player.gender == 'female' %}
+                                    <span class="badge ms-1" style="background: #E91E63; font-size: 0.45rem;">W</span>
+                                    {% endif %}
+                                    <small style="color: #666666; font-size: 0.55rem; display: block;">
+                                        {{ player.style[:60] }}{% if player.style|length > 60 %}...{% endif %}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="flex-shrink: 0;">
+                            <span style="color: {% if loop.first %}#E55000{% else %}#4CAF50{% endif %}; font-weight: {% if loop.first %}600{% endif %};">
+                                {{ player.similarity_pct }}%
+                            </span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Gap Analysis -->
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-graph-down-arrow"></i> Improvement Areas
+                </h6>
+                <span class="ms-auto badge" style="background: #2A2A2A; color: #C2C2C2;">
+                    {{ gaps|length }} gaps
+                </span>
+            </div>
+            <div class="card-body p-3">
+                {% if gaps %}
+                {% for gap in gaps[:3] %}
+                <div class="d-flex align-items-start mb-3 {% if not loop.last %}" style="border-bottom: 1px solid #1A1A1A; padding-bottom: 0.75rem;{% endif %}">
+                    <div class="me-2 mt-1">
+                        {% if gap.severity == 'high' %}
+                        <span class="badge" style="background: #E55000; width: 10px; height: 10px; padding: 0; border-radius: 50%; display: block;"></span>
+                        {% elif gap.severity == 'medium' %}
+                        <span class="badge" style="background: #FFC107; width: 10px; height: 10px; padding: 0; border-radius: 50%; display: block;"></span>
+                        {% else %}
+                        <span class="badge" style="background: #4CAF50; width: 10px; height: 10px; padding: 0; border-radius: 50%; display: block;"></span>
+                        {% endif %}
+                    </div>
+                    <div class="flex-grow-1">
+                        <strong style="color: #C2C2C2; font-size: 0.85rem;">{{ gap.label }}</strong>
+                        <div class="pill-bar mt-1" style="height: 5px;">
+                            <div class="pill-bar-fill"
+                                 style="width: {{ gap.gap_size }}%; background: {% if gap.severity == 'high' %}#E55000{% elif gap.severity == 'medium' %}#FFC107{% else %}#4CAF50{% endif %};">
+                            </div>
+                        </div>
+                        <small style="color: #888888;">
+                            You: {{ gap.user_value }}{{ gap.unit }} vs Pro: {{ gap.pro_value }}{{ gap.unit }}
+                        </small>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="text-center py-3" style="color: #888888;">
+                    <i class="bi bi-check-circle" style="font-size: 2rem; color: #4CAF50;"></i>
+                    <p class="mt-2">No significant gaps — great alignment!</p>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Coaching Tips -->
+        {% if tips %}
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-chat-quote"></i> Coaching Insights
+                </h6>
+            </div>
+            <div class="card-body p-3">
+                {% for tip in tips %}
+                <div class="d-flex align-items-start mb-3 {% if not loop.last %}" style="border-bottom: 1px solid #1A1A1A; padding-bottom: 0.75rem;{% endif %}">
+                    <div class="me-2 mt-1" style="color: #E55000;">
+                        <i class="bi bi-lightbulb"></i>
+                    </div>
+                    <div class="flex-grow-1">
+                        <p style="color: #C2C2C2; font-size: 0.85rem; margin-bottom: 0;">{{ tip }}</p>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Session Info -->
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-body p-3">
+                <h6 style="color: #888888; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px;">
+                    <i class="bi bi-info-circle"></i> Session Info
+                </h6>
+                <div class="row g-2 mt-2">
+                    <div class="col-6">
+                        <small style="color: #888888;">Shots</small>
+                        <br><strong style="color: #C2C2C2;">{{ session.num_shots_detected or '—' }}</strong>
+                    </div>
+                    <div class="col-6">
+                        <small style="color: #888888;">Duration</small>
+                        <br><strong style="color: #C2C2C2;">{{ "%.0f"|format(session.duration_sec or 0) }}s</strong>
+                    </div>
+                    <div class="col-6">
+                        <small style="color: #888888;">Top Speed</small>
+                        <br><strong style="color: #E55000;">{{ "%.0f"|format(session.bat_speed.peak_kmh or 0) }} km/h</strong>
+                    </div>
+                    <div class="col-6">
+                        <small style="color: #888888;">Hand</small>
+                        <br><strong style="color: #C2C2C2;">{{ (session.batting_hand or 'right')|title }}</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="d-flex gap-2 flex-wrap">
+            <a href="{{ url_for('session_view', session_id=session_id) }}" class="btn btn-outline-crease flex-fill">
+                <i class="bi bi-arrow-left"></i> Back to Session
+            </a>
+            <a href="{{ url_for('pro_compare_view', session_id=session_id) }}" class="btn btn-outline-crease flex-fill">
+                <i class="bi bi-trophy"></i> Classic View
+            </a>
+            <button class="btn btn-crease flex-fill" onclick="window.print()">
+                <i class="bi bi-printer"></i> Print
+            </button>
+        </div>
+
+        <!-- Legal Disclaimer -->
+        <div class="card border-0 mt-3"
+             style="background: #0A0A0A; border: 1px solid #2A2A2A !important;">
+            <div class="card-body p-2">
+                <small style="color: #666666; font-size: 0.6rem; font-style: italic;">
+                    <i class="bi bi-info-circle"></i>
+                    {{ result.disclaimer }}
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ── Zone Radar Chart ──
+    var zoneRadarLabels = {{ (zone_radar.labels if zone_radar else radar.labels)|tojson }};
+    var zoneUserValues = {{ (zone_radar.user_values if zone_radar else radar.user_values)|tojson }};
+    var zoneValues = {{ (zone_radar.zone_values if zone_radar else radar.pro_values)|tojson }};
+    var zoneLabel = {{ (zone_radar.zone_label if zone_radar else best.name)|tojson }};
+    var proName = {{ best.name|tojson }};
+
+    var ctx = document.getElementById('zoneRadarChart').getContext('2d');
+
+    new Chart(ctx, {
+        type: 'radar',
+        data: {
+            labels: zoneRadarLabels,
+            datasets: [{
+                label: 'You',
+                data: zoneUserValues,
+                borderColor: '#E55000',
+                backgroundColor: 'rgba(229, 80, 0, 0.15)',
+                borderWidth: 2,
+                pointBackgroundColor: '#E55000',
+                pointBorderColor: '#fff',
+                pointRadius: 4,
+            }, {
+                label: zoneLabel,
+                data: zoneValues,
+                borderColor: '#FFC107',
+                backgroundColor: 'rgba(255, 193, 7, 0.10)',
+                borderWidth: 2,
+                borderDash: [4, 3],
+                pointBackgroundColor: '#FFC107',
+                pointBorderColor: '#fff',
+                pointRadius: 4,
+            }, {
+                label: proName,
+                data: {{ radar.pro_values|tojson }},
+                borderColor: '#4CAF50',
+                backgroundColor: 'rgba(76, 175, 80, 0.08)',
+                borderWidth: 1.5,
+                borderDash: [2, 3],
+                pointBackgroundColor: '#4CAF50',
+                pointBorderColor: '#fff',
+                pointRadius: 3,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    position: 'top',
+                    labels: {
+                        color: '#C2C2C2',
+                        font: { size: 10 },
+                        padding: 12,
+                    }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            return context.dataset.label + ': ' + context.parsed.r.toFixed(0) + '%';
+                        }
+                    }
+                }
+            },
+            scales: {
+                r: {
+                    beginAtZero: true,
+                    max: 100,
+                    ticks: {
+                        stepSize: 20,
+                        color: '#666666',
+                        backdropColor: 'transparent',
+                        font: { size: 9 },
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.08)',
+                    },
+                    angleLines: {
+                        color: 'rgba(255, 255, 255, 0.08)',
+                    },
+                    pointLabels: {
+                        color: '#C2C2C2',
+                        font: { size: 10 },
+                    }
+                }
+            }
+        }
+    });
+});
+</script>
+{% endblock %}

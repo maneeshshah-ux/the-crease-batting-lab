@@ -604,15 +604,21 @@
                     See how your batting biomechanics compare to professional players.
                 </p>
                 <div class="d-flex align-items-center gap-2">
-                    <a href="{{ url_for('pro_compare_view', session_id=session.session_id) }}"
+                    <a href="{{ url_for('zonal_compare_view', session_id=session.session_id) }}"
                        class="btn btn-crease btn-sm flex-fill">
-                        <i class="bi bi-trophy"></i> Compare with Pros
+                        <i class="bi bi-trophy"></i> Zonal Hero Compare
                     </a>
                     <button class="btn btn-sm btn-outline-crease"
                             onclick="fetch('/api/pro-compare/disclaimer').then(r=>r.json()).then(d=>alert(d.disclaimer))"
                             title="Legal disclaimer">
                         <i class="bi bi-info-circle"></i>
                     </button>
+                </div>
+                <div class="mt-1">
+                    <a href="{{ url_for('pro_compare_view', session_id=session.session_id) }}"
+                       style="color: #888888; font-size: 0.7rem; text-decoration: none;">
+                        <i class="bi bi-arrow-right"></i> Classic comparison view
+                    </a>
                 </div>
                 <small style="color: #666666; font-size: 0.6rem; display: block; margin-top: 0.5rem; font-style: italic;">
                     Player comparisons are reference only.
