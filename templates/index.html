@@ -3,6 +3,19 @@
 {% block title %}the CREASE — AI Cricket Batting Analysis{% endblock %}
 
 {% block content %}
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<!-- QUICK UPLOAD ZONE — Tap once, pick a video, go!            -->
+<!-- ═══════════════════════════════════════════════════════════════ -->
+<form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data"
+      id="quick-upload-form" style="display:none;">
+    <input type="file" name="video" id="quick-video-input"
+           accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska">
+    <input type="hidden" name="batting_hand" value="right">
+    <input type="hidden" name="ball_color" value="red">
+    <input type="hidden" name="camera_view" value="side_off">
+    <input type="hidden" name="session_label" value="">
+</form>
+
 {% if g.user %}
 <!-- ═══════════════════════════════════════════════════════════════ -->
 <!-- LOGGED-IN USER: Dashboard -->
@@ -122,9 +135,20 @@
                     </div>
                     <h5 style="color: #AAAAAA;">Ready for your first session?</h5>
                     <p style="color: #888888;">Record a batting video, upload it, and get your first AI-powered analysis in minutes.</p>
-                    <a href="{{ url_for('upload') }}" class="btn btn-crease btn-lg">
-                        <i class="bi bi-cloud-upload"></i> Upload Your First Video
-                    </a>
+                    <div id="quick-upload-zone-dash" class="quick-upload-zone"
+                         style="cursor: pointer; max-width: 400px; margin: 0 auto;">
+                        <div class="p-3 rounded-3 text-center"
+                             style="border: 2px dashed #2A2A2A; background: rgba(229,80,0,0.03);">
+                            <i class="bi bi-cloud-upload" style="font-size: 2rem; color: #E55000;"></i>
+                            <p class="mt-2 mb-0" style="color: #C2C2C2;">
+                                <strong>Tap to select a video</strong>
+                            </p>
+                            <small style="color: #888888;">MP4, MOV, AVI · up to 500 MB</small>
+                        </div>
+                    </div>
+                    <p class="mt-2" style="color: #666666; font-size: 0.8rem;">
+                        <a href="{{ url_for('upload') }}" style="color: #E55000;">Advanced options</a>
+                    </p>
                 </div>
                 {% endif %}
             </div>
@@ -151,20 +175,26 @@
             <p style="color: #888888; font-size: 0.9rem; font-style: italic;">
                 <i class="bi bi-quote"></i> Know your game.
             </p>
-        <div class="d-flex gap-3 justify-content-center flex-wrap">
-            <a href="{{ url_for('upload') }}" class="btn btn-crease btn-lg px-4">
-                <i class="bi bi-cloud-upload"></i> Analyse Your Batting
-            </a>
-            <a href="{{ url_for('camera_guide') }}" class="btn btn-outline-crease btn-lg px-4">
-                <i class="bi bi-camera"></i> Camera Setup Guide
-            </a>
+        <!-- Quick upload — tap once, pick a video, done -->
+        <div id="quick-upload-zone" class="quick-upload-zone mx-auto mb-3"
+             style="max-width: 480px; cursor: pointer;">
+            <div class="p-4 p-md-5 rounded-3 text-center"
+                 style="border: 2px dashed #2A2A2A; background: rgba(229,80,0,0.03); transition: all 0.2s;">
+                <div class="mb-2">
+                    <i class="bi bi-cloud-upload" style="font-size: 2.5rem; color: #E55000;"></i>
+                </div>
+                <h4 style="color: #C2C2C2; font-weight: 600;">Tap to Select a Batting Video</h4>
+                <p style="color: #888888; font-size: 0.9rem; margin-bottom: 0;">
+                    MP4, MOV, AVI · up to 500 MB<br>
+                    <small>Auto-analysed with default settings</small>
+                </p>
+            </div>
+            <p class="text-center mt-2" style="color: #666666; font-size: 0.8rem;">
+                <a href="{{ url_for('upload') }}" style="color: #E55000;">Advanced Options</a>
+                &nbsp;·&nbsp;
+                <a href="{{ url_for('camera_guide') }}" style="color: #888888;">Camera Guide</a>
+            </p>
         </div>
-        <p class="mt-3" style="color: #666666; font-size: 0.85rem;">
-            <i class="bi bi-check-circle" style="color: #4CAF50;"></i> No account needed
-            · <i class="bi bi-check-circle" style="color: #4CAF50;"></i> Free to use
-            · <i class="bi bi-check-circle" style="color: #4CAF50;"></i> Share results instantly
-            · <i class="bi bi-check-circle" style="color: #4CAF50;"></i> Works on any device
-        </p>
     </div>
 </div>
 
@@ -296,9 +326,13 @@
             <p style="color: #C2C2C2;">
                 Join thousands of cricketers using AI to analyse their technique.
             </p>
-            <a href="{{ url_for('upload') }}" class="btn btn-crease btn-lg px-5">
-                <i class="bi bi-cloud-upload"></i> Analyse Your First Session
-            </a>
+            <div id="quick-upload-zone-cta" class="quick-upload-zone" style="cursor: pointer;">
+                <div class="p-3 rounded-3 text-center d-inline-block"
+                     style="border: 2px dashed #2A2A2A; background: rgba(229,80,0,0.03); min-width: 280px;">
+                    <i class="bi bi-cloud-upload" style="font-size: 1.5rem; color: #E55000;"></i>
+                    <span class="ms-2" style="color: #C2C2C2; font-weight: 600;">Tap to Select a Video</span>
+                </div>
+            </div>
             <p class="mt-2" style="color: #666666; font-size: 0.8rem;">
                 Free. No account needed. Works on any device.
             </p>

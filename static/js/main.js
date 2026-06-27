@@ -265,6 +265,8 @@
                 })
                 .catch(function(err) {
                     console.error('Poll error:', err);
+                    // If job not found (deploy restart), clear and let user retry
+                    clearActiveJob();
                 });
         }, 1500);
     };
@@ -287,7 +289,7 @@
                             clearActiveJob();
                         }
                     })
-                    .catch(function() { /* ignore — job may have expired */ });
+                    .catch(function() { clearActiveJob(); });
             }
         } catch(e) {}
     }
