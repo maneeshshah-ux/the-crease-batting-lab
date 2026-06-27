@@ -122,6 +122,21 @@ public class MainActivity extends Activity {
                 super.onPageFinished(view, url);
                 hideLoading();
                 isFirstLoad = false;
+                // Hide "Install on phone" banner — we are the native app!
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    view.evaluateJavascript(
+                        "document.body.classList.add('app-android');" +
+                        "['pwa-install-banner','install-banner'].forEach(function(id){" +
+                        "  var e=document.getElementById(id);" +
+                        "  if(e)e.style.display='none';" +
+                        "});" +
+                        "document.querySelectorAll('.install-banner,[class*=install]').forEach(function(e){" +
+                        "  e.style.display='none';" +
+                        "});" +
+                        "true;",
+                        null
+                    );
+                }
             }
 
             @Override
