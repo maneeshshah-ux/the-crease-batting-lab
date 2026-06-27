@@ -265,8 +265,15 @@
                 })
                 .catch(function(err) {
                     console.error('Poll error:', err);
-                    // If job not found (deploy restart), clear and let user retry
+                    // If job not found (deploy restart, 404), redirect home
                     clearActiveJob();
+                    // Update status text so user knows what happened
+                    var st = document.getElementById('status-text');
+                    if (st) {
+                        st.innerHTML = '⚠️ This session expired.<br>' +
+                            '<a href="/" style="color:#E55000;">Tap here to upload again</a>';
+                    }
+                    clearInterval(pollInterval);
                 });
         }, 1500);
     };
