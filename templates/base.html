@@ -223,10 +223,11 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- GLOBAL QUICK-UPLOAD — hidden file input, XHR upload w/ bar   -->
+    <!-- GLOBAL QUICK-UPLOAD — file input (opacity:0 for mobile tap)  -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <input type="file" name="video" id="quick-video-input" style="display:none;"
-           accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska">
+    <input type="file" name="video" id="quick-video-input"
+           accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska"
+           style="position:fixed; left:-9999px; top:-9999px; opacity:0; width:1px; height:1px; z-index:-1;">
 
     <!-- Upload progress overlay -->
     <div id="upload-progress-overlay" style="display:none; position:fixed; inset:0; z-index:10000;
@@ -286,8 +287,9 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // GLOBAL QUICK UPLOAD — tap → pick → XHR upload w/ progress bar
+    // GLOBAL QUICK UPLOAD — pick a video → XHR upload w/ progress bar
     // ═══════════════════════════════════════════════════════════════
+    // (Labels with for="quick-video-input" handle the file picker opening natively)
     document.addEventListener('DOMContentLoaded', function() {
         var quickInput = document.getElementById('quick-video-input');
         if (!quickInput) return;
@@ -353,14 +355,6 @@
             xhr.send(fd);
             // Reset input so user can re-upload same file if needed
             this.value = '';
-        });
-
-        // Wire up all .quick-upload-zone elements to trigger file picker
-        document.querySelectorAll('.quick-upload-zone').forEach(function(zone) {
-            zone.addEventListener('click', function(e) {
-                e.preventDefault();
-                quickInput.click();
-            });
         });
     });
 
