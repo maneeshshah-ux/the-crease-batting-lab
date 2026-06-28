@@ -109,7 +109,7 @@
     }
     </style>
 </head>
-<body>
+<body {% block body_attrs %}{% endblock %}>
     <!-- Navbar -->
     <nav class="navbar navbar-expand-lg navbar-dark sticky-top" style="background: #0A0A0A; border-bottom: 1px solid #2A2A2A;">
         <div class="container">
@@ -331,12 +331,11 @@
             xhr.onload = function() {
                 if (overlay) overlay.style.display = 'none';
                 if (xhr.status === 200) {
-                    // Extract job_id from the response HTML and navigate
-                    var match = xhr.responseText.match(/data-poll-job="([^"]+)"/);
-                    if (match && match[1]) {
-                        window.location.href = '/job/' + match[1];
+                    // Extract job_id from the inline JS variable in the response
+                    var m = xhr.responseText.match(/var jobId\s*=\s*"([^"]+)"/);
+                    if (m && m[1]) {
+                        window.location.href = '/job/' + m[1];
                     } else {
-                        // Fallback: write the response into the page
                         document.open();
                         document.write(xhr.responseText);
                         document.close();
