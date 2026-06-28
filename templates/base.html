@@ -223,18 +223,25 @@
     </div>
 
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <!-- GLOBAL QUICK-UPLOAD FORM — hidden, works from any page       -->
+    <!-- GLOBAL QUICK-UPLOAD — hidden file input, XHR upload w/ bar   -->
     <!-- ═══════════════════════════════════════════════════════════════ -->
-    <form method="POST" action="{{ url_for('upload') }}" enctype="multipart/form-data"
-          id="quick-upload-form" style="display:none;">
-        <input type="file" name="video" id="quick-video-input"
-               accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska">
-        <input type="hidden" name="batting_hand" value="right">
-        <input type="hidden" name="ball_color" value="red">
-        <input type="hidden" name="camera_view" value="side_off">
-        <input type="hidden" name="session_label" value="">
-        <input type="hidden" name="quick_upload" value="1">
-    </form>
+    <input type="file" name="video" id="quick-video-input" style="display:none;"
+           accept="video/mp4,video/quicktime,video/x-msvideo,video/webm,video/x-matroska">
+
+    <!-- Upload progress overlay -->
+    <div id="upload-progress-overlay" style="display:none; position:fixed; inset:0; z-index:10000;
+         background:rgba(0,0,0,0.85); flex-direction:column; align-items:center; justify-content:center;">
+        <div style="max-width:360px; width:85%; text-align:center;">
+            <div style="color:#E55000; font-size:1.1rem; font-weight:600; margin-bottom:8px;" id="upl-status">
+                Uploading…
+            </div>
+            <div style="height:8px; background:#1a1a1a; border-radius:8px; overflow:hidden;">
+                <div id="upl-bar" style="height:100%; width:0%; background:linear-gradient(90deg,#E55000,#FF6D00);
+                     border-radius:8px; transition:width 0.3s;"></div>
+            </div>
+            <div style="color:#888; font-size:0.8rem; margin-top:6px;" id="upl-pct">0%</div>
+        </div>
+    </div>
 
     <!-- Main content -->
     <main class="container py-3">
@@ -279,19 +286,73 @@
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // GLOBAL QUICK UPLOAD — tap anywhere, pick a video, auto-submit
+    // GLOBAL QUICK UPLOAD — tap → pick → XHR upload w/ progress bar
     // ═══════════════════════════════════════════════════════════════
     document.addEventListener('DOMContentLoaded', function() {
         var quickInput = document.getElementById('quick-video-input');
-        var quickForm = document.getElementById('quick-upload-form');
+        if (!quickInput) return;
 
-        if (!quickInput || !quickForm) return;
-
-        // Auto-submit when user picks a video
         quickInput.addEventListener('change', function() {
-            if (this.files && this.files.length > 0) {
-                quickForm.submit();
-            }
+            if (!this.files || this.files.length === 0) return;
+            var file = this.files[0];
+
+            // Show overlay
+            var overlay = document.getElementById('upload-progress-overlay');
+            var bar = document.getElementById('upl-bar');
+            var pct = document.getElementById('upl-pct');
+            var status = document.getElementById('upl-status');
+            if (overlay) overlay.style.display = 'flex';
+            if (status) status.textContent = 'Uploading…';
+            if (bar) bar.style.width = '0%';
+            if (pct) pct.textContent = '0%';
+
+            // Build form data
+            var fd = new FormData();
+            fd.append('video', file);
+            fd.append('batting_hand', 'right');
+            fd.append('ball_color', 'red');
+            fd.append('camera_view', 'side_off');
+            fd.append('session_label', '');
+            fd.append('quick_upload', '1');
+
+            var xhr = new XMLHttpRequest();
+            xhr.open('POST', '/upload', true);
+
+            xhr.upload.onprogress = function(e) {
+                if (e.lengthComputable) {
+                    var pc = Math.round((e.loaded / e.total) * 100);
+                    if (bar) bar.style.width = pc + '%';
+                    if (pct) pct.textContent = pc + '%';
+                }
+            };
+
+            xhr.onload = function() {
+                if (overlay) overlay.style.display = 'none';
+                if (xhr.status === 200) {
+                    // Extract job_id from the response HTML and navigate
+                    var match = xhr.responseText.match(/data-poll-job="([^"]+)"/);
+                    if (match && match[1]) {
+                        window.location.href = '/job/' + match[1];
+                    } else {
+                        // Fallback: write the response into the page
+                        document.open();
+                        document.write(xhr.responseText);
+                        document.close();
+                    }
+                } else {
+                    if (status) status.textContent = 'Upload failed';
+                    if (pct) pct.textContent = 'Error';
+                }
+            };
+
+            xhr.onerror = function() {
+                if (overlay) overlay.style.display = 'none';
+                alert('Upload failed. Check your connection and try again.');
+            };
+
+            xhr.send(fd);
+            // Reset input so user can re-upload same file if needed
+            this.value = '';
         });
 
         // Wire up all .quick-upload-zone elements to trigger file picker
@@ -302,6 +363,53 @@
             });
         });
     });
+
+    // ═══════════════════════════════════════════════════════════════
+    // POLL JOB — used by processing.html to monitor analysis progress
+    // ═══════════════════════════════════════════════════════════════
+    window.pollJob = function(jobId) {
+        if (!jobId) return;
+        var bar = document.getElementById('progress-bar');
+        var phaseText = document.getElementById('phase-text');
+        var statusText = document.getElementById('status-text');
+
+        var poll = setInterval(function() {
+            fetch('/api/job/' + jobId)
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (bar && data.progress !== undefined) {
+                        bar.style.width = data.progress + '%';
+                        bar.setAttribute('aria-valuenow', data.progress);
+                    }
+                    if (phaseText && data.message) {
+                        phaseText.textContent = data.message;
+                    }
+                    if (statusText && data.status === 'processing') {
+                        statusText.textContent = 'Processing video frames…';
+                    }
+
+                    if (data.status === 'completed') {
+                        clearInterval(poll);
+                        if (data.redirect) {
+                            window.location.href = data.redirect;
+                        }
+                    } else if (data.status === 'failed') {
+                        clearInterval(poll);
+                        if (statusText) {
+                            statusText.textContent = 'Analysis failed';
+                            statusText.style.color = '#da3633';
+                        }
+                        if (phaseText) {
+                            phaseText.textContent = data.error || 'Unknown error';
+                            phaseText.style.color = '#da3633';
+                        }
+                    }
+                })
+                .catch(function(err) {
+                    console.warn('Poll error:', err);
+                });
+        }, 2000);
+    };
     </script>
     {% block scripts %}{% endblock %}
 </body>
