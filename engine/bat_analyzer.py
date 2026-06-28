@@ -357,8 +357,9 @@ class BatAnalyzer:
                 "method": method,
                 **detail,
             }
-            print(f"  Calibration [{method}]: {px_per_m:.1f} px/m "
-                  f"({detail.get('avg_leg_px', detail.get('avg_torso_px', detail.get('avg_shoulder_px', 'N/A'))):.0f} px)")
+            _ref = detail.get('avg_leg_px', detail.get('avg_torso_px', detail.get('avg_shoulder_px', None)))
+            _ref_str = f"{_ref:.0f}" if _ref else "N/A"
+            print(f"  Calibration [{method}]: {px_per_m:.1f} px/m ({_ref_str} px)")
             return self.calibration
 
         return None
@@ -445,6 +446,8 @@ class BatAnalyzer:
         clean_speeds, n_outliers = self._filter_speed_outliers(speeds)
         if len(clean_speeds) < 3:
             clean_speeds = [s for s in speeds if s > 0][:5]  # fallback
+        if len(clean_speeds) == 0:
+            clean_speeds = [0.0]
 
         avg_speed_px = float(np.mean(clean_speeds).item())
         peak_speed_px = float(max(clean_speeds))
