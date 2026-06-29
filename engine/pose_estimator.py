@@ -43,6 +43,7 @@ _MP_MODEL_DOWNLOAD_RELPATHS = {
 # (must be copied to /tmp/ so they remain findable)
 _MP_MODEL_COPY_RELPATHS = [
     "mediapipe/modules/pose_detection/pose_detection.tflite",
+    "mediapipe/modules/pose_landmark/pose_landmark_full.tflite",
 ]
 
 
