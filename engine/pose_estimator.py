@@ -12,64 +12,87 @@ import os
 import shutil
 import urllib.request
 
-# ── Read-only filesystem workaround ────────────────────────────────────
-# MediaPipe 0.10.9 tries to download pose model .tflite files to the
-# site-packages directory at runtime.  On Render.com (and other read-only
-# filesystems) this fails with PermissionError.  We pre-download the model
-# and patch download_utils to fall back to /tmp/ when needed.
+# ── Read-only filesystem workaround ─────────────────────────────────────
+# MediaPipe 0.10.9 bundles most model files in the pip wheel, but the
+# model_complexity-specific pose landmark models (lite & heavy) are NOT
+# bundled — they are downloaded at runtime via download_oss_model().
+#
+# On Render.com (read-only filesystem) the download fails with
+# PermissionError because site-packages is not writable.
+#
+# Our fix:
+#   1. Pre-download the missing .tflite files to /tmp/
+#   2. Copy bundled .tflite files that would be masked by a resource-dir
+#      change to /tmp/ as well
+#   3. Redirect MediaPipe's C++ resource directory (resource_util) to /tmp/
+#      AFTER SolutionBase.__init__ sets it (because SolutionBase.__init__
+#      always resets it to site-packages).
+#
+# The C++ calculators (PoseDetection, PoseLandmarkByRoiCpu) load model
+# files relative to resource_util's resource dir.  By pointing it at /tmp/
+# they find the files we pre-downloaded.
+# ──────────────────────────────────────────────────────────────────────────
 
-_MP_MODEL_RELPATHS = {
+# Models NOT bundled in the wheel (downloaded at runtime)
+_MP_MODEL_DOWNLOAD_RELPATHS = {
     0: "mediapipe/modules/pose_landmark/pose_landmark_lite.tflite",
     2: "mediapipe/modules/pose_landmark/pose_landmark_heavy.tflite",
 }
 
+# Models bundled in the wheel but needed after resource-dir redirect
+# (must be copied to /tmp/ so they remain findable)
+_MP_MODEL_COPY_RELPATHS = [
+    "mediapipe/modules/pose_detection/pose_detection.tflite",
+]
 
-def _ensure_pose_model(model_complexity: int = 0):
-    """Ensure the MediaPipe pose model is available, even on read-only fs.
 
-    Tries the standard package-directory location first.  If that is not
-    writable, downloads to ``/tmp/`` and patches ``download_oss_model`` so
-    MediaPipe's ``Pose.__init__`` finds the model without writing to the
-    read-only location.
+def _ensure_pose_models(model_complexity: int = 0):
+    """Pre-download/copy needed model files and redirect resource dir.
+
+    Must be called AFTER ``SolutionBase.__init__`` (i.e. after creating the
+    ``Pose`` object) so that our ``resource_util.set_resource_dir()`` call
+    is not overwritten.
     """
-    rel = _MP_MODEL_RELPATHS.get(model_complexity)
-    if rel is None:
-        return  # model_complexity=1 (full) ships with the wheel
+    rel = _MP_MODEL_DOWNLOAD_RELPATHS.get(model_complexity)
 
     try:
         from mediapipe.python.solutions import download_utils as _du
+        from mediapipe.python._framework_bindings import resource_util as _ru
     except ImportError:
         return
 
     mp_root = os.sep.join(
         os.path.abspath(_du.__file__).split(os.sep)[:-4]
     )
-    model_abspath = os.path.join(mp_root, rel)
 
-    if os.path.exists(model_abspath):
-        return  # already present (local dev / build-time download)
-
-    model_url = _du._GCS_URL_PREFIX + rel.split("/")[-1]
-
-    # 1) Attempt normal download to package directory
-    try:
-        os.makedirs(os.path.dirname(model_abspath), exist_ok=True)
-        with urllib.request.urlopen(model_url) as resp, \
-                open(model_abspath, "wb") as f:
-            shutil.copyfileobj(resp, f)
+    # ── Only act if site-packages is read-only ──────────────────────────
+    if os.access(mp_root, os.W_OK):
         return
-    except (PermissionError, OSError):
-        pass
 
-    # 2) Fallback: download to /tmp/
-    tmp_path = os.path.join("/tmp", rel)
-    os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
-    if not os.path.exists(tmp_path):
-        with urllib.request.urlopen(model_url) as resp, \
-                open(tmp_path, "wb") as f:
-            shutil.copyfileobj(resp, f)
+    # ── 1. Download missing pose landmark model to /tmp/ ────────────────
+    if rel is not None:
+        tmp_model = os.path.join("/tmp", rel)
+        os.makedirs(os.path.dirname(tmp_model), exist_ok=True)
+        if not os.path.exists(tmp_model):
+            model_url = _du._GCS_URL_PREFIX + rel.split("/")[-1]
+            with urllib.request.urlopen(model_url) as resp, \
+                    open(tmp_model, "wb") as f:
+                shutil.copyfileobj(resp, f)
 
-    # 3) Patch download_utils so Pose.__init__ skips the failed download
+    # ── 2. Copy bundled models that will be masked by the dir redirect ──
+    for copy_rel in _MP_MODEL_COPY_RELPATHS:
+        tmp_path = os.path.join("/tmp", copy_rel)
+        if os.path.exists(tmp_path):
+            continue
+        src = os.path.join(mp_root, copy_rel)
+        if os.path.exists(src):
+            os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
+            shutil.copy2(src, tmp_path)
+
+    # ── 3. Redirect resource dir so C++ calculators find models in /tmp/ ─
+    _ru.set_resource_dir("/tmp/")
+
+    # ── 4. Patch download_oss_model as safety net for any lazy downloads ─
     _original_download = _du.download_oss_model
 
     def _patched_download(model_path: str):
@@ -77,12 +100,10 @@ def _ensure_pose_model(model_complexity: int = 0):
         full_path = os.path.join(mp_root, model_path)
         if os.path.exists(full_path):
             return
-        # If the target dir is writable, delegate to original
         target_dir = os.path.dirname(full_path)
         if os.access(target_dir, os.W_OK):
             _original_download(model_path)
             return
-        # Otherwise download to /tmp/
         local_path = os.path.join("/tmp", model_path)
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
         if os.path.exists(local_path):
@@ -178,9 +199,6 @@ class PoseEstimator:
             model_complexity: 0=lite, 1=full, 2=heavy
             smooth: Temporal smoothing across frames
         """
-        # Ensure pose model is available (handles read-only filesystems)
-        _ensure_pose_model(model_complexity)
-
         # Use module-level compatibility references
         if _mp_has_solutions:
             self.pose = _mp_pose.Pose(
@@ -192,6 +210,11 @@ class PoseEstimator:
                 min_detection_confidence=min_detection_confidence,
                 min_tracking_confidence=min_tracking_confidence,
             )
+
+            # Ensure pose model is available on read-only filesystems.
+            # Must happen AFTER Pose.__init__ (which calls
+            # SolutionBase.__init__ and resets resource_util).
+            _ensure_pose_models(model_complexity)
         else:
             # New-style MediaPipe API (pose_landmarker based)
             from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions
