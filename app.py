@@ -27,6 +27,7 @@ from engine.highlight_reel import HighlightReel
 from engine.scorecard_image import ScorecardImage
 from engine.multi_cam_sync import MultiCameraSync, FfmpegNotFoundError
 from engine.pro_comparison import ProComparison, ZonalComparison
+from engine.report_generator import generate_report
 
 # ── Commercial SaaS imports ────────────────────────────────────────────────
 from auth import auth_bp, login_required
@@ -206,10 +207,37 @@ def session_view(session_id):
     """View analysis results — OPEN TO EVERYONE."""
     session_path = SESSION_DIR / f"{session_id}.json"
     if not session_path.exists():
+        session_path = SESSION_DIR / f"analysis_{session_id}.json"
+    if not session_path.exists():
         return render_template("error.html",
                                message=f"Session {session_id} not found"), 404
     with open(session_path) as f:
         data = json.load(f)
+
+    # Convert flat phase list [[frame, name], ...] to segments [{phase, start_frame, end_frame}, ...]
+    raw_phases = data.get("phases", [])
+    if raw_phases and isinstance(raw_phases[0], list):
+        segments = []
+        if raw_phases:
+            current_phase = raw_phases[0][1]
+            current_start = raw_phases[0][0]
+            for i in range(1, len(raw_phases)):
+                frame, name = raw_phases[i]
+                if name != current_phase:
+                    segments.append({
+                        "phase": current_phase,
+                        "start_frame": current_start,
+                        "end_frame": raw_phases[i - 1][0]
+                    })
+                    current_phase = name
+                    current_start = frame
+            # Last segment
+            segments.append({
+                "phase": current_phase,
+                "start_frame": current_start,
+                "end_frame": raw_phases[-1][0]
+            })
+        data["phases"] = segments
 
     share_token = data.get("share_token", session_id[:10])
     share_url = url_for("shared_session", share_token=share_token, _external=True)
@@ -243,6 +271,30 @@ def shared_session(share_token):
             with open(f) as fh:
                 data = json.load(fh)
             if data.get("share_token") == share_token or data.get("session_id") == share_token[:8]:
+                # Convert flat phase list [[frame, name], ...] to segments
+                raw_phases = data.get("phases", [])
+                if raw_phases and isinstance(raw_phases[0], list):
+                    segments = []
+                    if raw_phases:
+                        current_phase = raw_phases[0][1]
+                        current_start = raw_phases[0][0]
+                        for i in range(1, len(raw_phases)):
+                            frame, name = raw_phases[i]
+                            if name != current_phase:
+                                segments.append({
+                                    "phase": current_phase,
+                                    "start_frame": current_start,
+                                    "end_frame": raw_phases[i - 1][0]
+                                })
+                                current_phase = name
+                                current_start = frame
+                        segments.append({
+                            "phase": current_phase,
+                            "start_frame": current_start,
+                            "end_frame": raw_phases[-1][0]
+                        })
+                    data["phases"] = segments
+
                 share_url = url_for("shared_session", share_token=share_token, _external=True)
                 has_video = bool(data.get("output_video_path"))
                 bragging = data.get("bragging_rights", {})
@@ -456,6 +508,85 @@ def session_scorecard(session_id):
     return send_file(buf, mimetype="image/png",
                      download_name=f"crease_scorecard_{session_id}.png",
                      as_attachment=True)
+
+
+@app.route("/session/<session_id>/report")
+def session_report(session_id):
+    """Generate and download a professional PDF coaching report for this session."""
+    path = SESSION_DIR / f"{session_id}.json"
+    if not path.exists():
+        path = SESSION_DIR / f"analysis_{session_id}.json"
+    if not path.exists():
+        return render_template("error.html",
+                               message=f"Session {session_id} not found"), 404
+
+    with open(path) as f:
+        session_data = json.load(f)
+
+    # Build report_data (mirrors logic in report_generator.generate_report_from_json)
+    ss = session_data.get("session_summary", {})
+    shots = session_data.get("shot_summary", [])
+    bs = session_data.get("bat_speed", {})
+    head_score = ss.get("head_stability_score", 0)
+    total_shots = len(shots)
+    complete_shots = len([s for s in shots if s.get("has_impact")])
+    completion_pct = (complete_shots / total_shots * 100) if total_shots > 0 else 0
+    avg_knee = ss.get("avg_front_knee_angle", 154)
+    avg_spine = ss.get("avg_spine_angle", 166)
+    peak_kmh = bs.get("peak_kmh", 0) if bs.get("kmh_estimated") else 0
+
+    session_score = min(100, max(0,
+        (head_score * 0.35) +
+        (completion_pct * 0.25) +
+        (min(100, (avg_knee - 100) * 1.5) * 0.15) +
+        (min(100, max(0, 180 - avg_spine) * 3) * 0.15) +
+        (min(100, max(0, peak_kmh - 60)) * 0.10)
+    ))
+
+    priorities = []
+    if head_score < 60:
+        priorities.append({"rank": 1, "area": "HEAD STABILITY",
+                           "drill": "Head-Still Drill: Place a bottle cap on your head while shadow batting. Play 50 forward defensive strokes without it falling off."})
+    if completion_pct < 50:
+        priorities.append({"rank": len(priorities) + 1, "area": "SHOT COMMITMENT",
+                           "drill": "Commitment Drill: Commit to every shot you start. A full swing builds consistency."})
+    if avg_knee > 155:
+        priorities.append({"rank": len(priorities) + 1, "area": "KNEE FLEX",
+                           "drill": "Knee-Tap Drill: Mark a spot 12 inches down the pitch. Every shot, front foot to that spot with knee bent to 130 deg."})
+    if avg_spine < 155:
+        priorities.append({"rank": len(priorities) + 1, "area": "POSTURE",
+                           "drill": "Corridor Drill: Place a second set of stumps 4ft down. Reach with your front foot only, not your head."})
+
+    report_data = {
+        "priorities": priorities,
+        "session_score": session_score,
+    }
+
+    # Find analysis video for frame annotation
+    video_path = session_data.get("output_video_path", "")
+    if not video_path or not os.path.exists(video_path):
+        # Try the original upload video
+        video_path = session_data.get("video_path", "")
+    if not video_path or not os.path.exists(video_path):
+        video_path = None
+
+    # Generate PDF to a temp file
+    pdf_path = str(REPORT_DIR / f"report_{session_id}.pdf")
+    try:
+        generate_report(
+            session_data=session_data,
+            report_data=report_data,
+            analysis_video_path=video_path,
+            output_path=pdf_path,
+            skip_annotated_frames=(video_path is None),
+        )
+        return send_file(pdf_path, mimetype="application/pdf",
+                         download_name=f"crease_report_{session_id}.pdf",
+                         as_attachment=True)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({"error": f"Report generation failed: {str(e)}"}), 500
 
 
 @app.route("/session/<session_id>/highlight/<int:clip_idx>")

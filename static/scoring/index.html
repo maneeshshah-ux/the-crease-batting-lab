@@ -269,7 +269,7 @@ const state = {
 };
 const S = () => state;
 
-function striker() { const i = S().innings; return i ? (i.striker === 1 ? i.b1 : i.b2) : null; }
+function striker() { const i = S().innings; if (!i) return null; if (i.isSolo) return i.b1; return i.striker === 1 ? i.b1 : i.b2; }
 function oversDisplay(i) { return i ? i.over + '.' + (i.legalBalls + 1) : '0.0'; }
 function mb() { return { runs: 0, grossRuns: 0, bf: 0, legalBf: 0, dotBalls: 0, dismissals: 0, fours: 0, sixes: 0, threes: 0, bonusRuns: 0, howOut: null, fielder: null, bowlerOut: null }; }
 
@@ -283,10 +283,11 @@ function readPlayersFromInput() {
 function makeInnings(pairIdx) {
   const p = S().pairs[pairIdx];
   if (!p) return null;
+  const solo = !p.b2;
   return {
     pairIdx, pairNo: pairIdx + 1,
     b1: mb(), b2: mb(),
-    b1Name: p.b1, b2Name: p.b2,
+    b1Name: p.b1, b2Name: solo ? '' : p.b2,
     striker: 1, total: 0, wkts: 0,
     extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 },
     over: 0, legalBalls: 0, totalBalls: 0,
@@ -295,7 +296,8 @@ function makeInnings(pairIdx) {
     prevBowler: '',
     complete: false, maxOvers: S().maxOvers,
     lastLegalStriker: null,
-    history: []
+    history: [],
+    isSolo: solo
   };
 }
 
@@ -322,6 +324,7 @@ function pushUndo() {
 function canBat(num) {
   const inn = S().innings;
   if (!inn) return false;
+  if (inn.isSolo && num === 2) return false;
   const b = num === 1 ? inn.b1 : inn.b2;
   const maxBf = S().maxBallsPerBatter;
   if (S().modifiedRules) return b.legalBf < maxBf;
@@ -390,7 +393,9 @@ function renderSetup() {
     const o2 = s.allPlayers.map(n => '<option value="' + n + '"' + (n === p.b2 ? ' selected' : '') + '>' + n + '</option>').join('');
     pc += '<div class="pair-row"><div class="pair-label">Pair ' + (i + 1) + '</div>'
       + '<select onchange="setPair(' + i + ',1,this.value)"><option value="">Select batter</option>' + o1 + '</select>'
-      + '<select onchange="setPair(' + i + ',2,this.value)"><option value="">Select batter</option>' + o2 + '</select></div>';
+      + (p.b2 === null
+        ? '<span style="font-size:11px;color:var(--orange);padding:0 8px;display:flex;align-items:center">Solo</span>'
+        : '<select onchange="setPair(' + i + ',2,this.value)"><option value="">Select batter</option>' + o2 + '</select>') + '</div>';
   }
 
   // Check for interrupted session to show resume prompt
@@ -483,7 +488,7 @@ function autoAssignPairs() {
   const pairs = [];
   for (let i = 0; i < pl.length; i += 2) {
     if (i + 1 < pl.length) pairs.push({ b1: pl[i], b2: pl[i + 1] });
-    else pairs.push({ b1: pl[i], b2: pl[i] + ' (runner)' });
+    else pairs.push({ b1: pl[i], b2: null });
   }
   S().numPairs = pairs.length;
   S().pairs = pairs;
@@ -494,7 +499,7 @@ function startMatch() {
   readPlayersFromInput();
   updateSessionSettings();
   if (S().allPlayers.length < 2) { alert('Enter at least 2 players'); return; }
-  for (const p of S().pairs) { if (!p.b1 || !p.b2) { alert('All pairs need 2 batters selected'); return; } }
+  for (const p of S().pairs) { if (!p.b1) { alert('All pairs need at least 1 batter selected'); return; } }
   S().completedInnings = [];
   S().currentPairIdx = 0;
   S().view = 'pairselect';
@@ -519,7 +524,7 @@ function renderPairSelect() {
     pairCards += '<div class="card" style="' + (done ? 'opacity:0.5' : 'cursor:pointer') + '">'
       + '<div style="display:flex;justify-content:space-between;align-items:center">'
       + '<div><strong style="font-size:14px;color:var(--orange)">Pair ' + (i+1) + '</strong>'
-      + '<div style="font-size:15px;margin-top:4px">' + p.b1 + ' &amp; ' + p.b2 + '</div></div>'
+      + '<div style="font-size:15px;margin-top:4px">' + p.b1 + (p.b2 ? ' &amp; ' + p.b2 : ' <span style="color:var(--orange)">(solo)</span>') + '</div></div>'
       + (done
         ? '<span style="color:var(--green);font-size:12px">\u2713 Completed</span>'
         : '<button class="btn btn-orange" onclick="beginInnings(' + i + ')" style="min-width:100px">\u25b6 Bat</button>')
@@ -537,10 +542,10 @@ function renderPairSelect() {
 function beginInnings(pairIdx) {
   const idx = pairIdx !== undefined ? pairIdx : S().currentPairIdx;
   const p = S().pairs[idx];
-  if (!p || !p.b1 || !p.b2) { alert('Pair not configured'); return; }
+  if (!p || !p.b1) { alert('Pair not configured'); return; }
   // Default bowler if not set
   const existing = S()._nextBowler || '';
-  const excludes = [p.b1, p.b2];
+  const excludes = p.b2 ? [p.b1, p.b2] : [p.b1];
   let avail = S().allPlayers.filter(function(n) { return !excludes.includes(n); });
   if (!existing || !avail.includes(existing)) {
     S()._nextBowler = avail[0] || '';
@@ -558,7 +563,7 @@ function beginInnings(pairIdx) {
 function showBowlerSelectBeforeMatch() {
   const p = S().pairs[0];
   if (!p) return;
-  const excludes = [p.b1, p.b2];
+  const excludes = p.b2 ? [p.b1, p.b2] : [p.b1];
   // Pre-select next bowler from all players not in first pair
   let avail = S().allPlayers.filter(function(n) { return !excludes.includes(n); });
   if (avail.length === 0) avail = S().allPlayers;
@@ -635,7 +640,7 @@ function renderMatch() {
     return '<div class="hist-item"><span class="ball">' + h.over + '.' + h.ballNum + '</span><span class="evt ' + cls + '">' + txt + '</span><span class="total">' + h.runningTotal + '</span></div>';
   }).join('');
 
-  const excludes = [inn.b1Name, inn.b2Name];
+  const excludes = [inn.b1Name, inn.b2Name].filter(Boolean);
   const bowlerOpts = S().allPlayers.filter(n => !excludes.includes(n)).map(n =>
     '<option value="' + n + '"' + (n === inn.currentBowler ? ' selected' : '') + '>' + n + '</option>'
   ).join('');
@@ -647,16 +652,18 @@ function renderMatch() {
     + '<button class="btn btn-sm btn-dark" onclick="S().view=\'match\';closeAllModals();render()" style="flex:1' + (S().view === 'match' ? ';border-color:var(--orange)' : '') + '">Scoring</button>'
     + '<button class="btn btn-sm btn-dark" onclick="showScorecard()" style="flex:1">Scorecard</button></div>'
     + '<div class="match-header">'
-    + '<div class="info"><strong>Pair ' + inn.pairNo + '/' + S().pairs.length + '</strong> \u00b7 ' + inn.b1Name + ' &amp; ' + inn.b2Name + '</div>'
+    + '<div class="info"><strong>Pair ' + inn.pairNo + '/' + S().pairs.length + '</strong> \u00b7 ' + inn.b1Name + (inn.isSolo ? ' (solo)' : ' &amp; ' + inn.b2Name) + '</div>'
     + '<div class="bowler-select"><label>Bowler</label><select onchange="S().innings.currentBowler=this.value">' + bowlerOpts + '</select>'
     + (isNewOver ? '<span class="new-over-badge">NEW OVER</span>' : '') + '</div></div>'
     + '<div class="match-bar"><div>'
     + '<div class="score">' + inn.total + '/' + inn.wkts + (extTotal > 0 ? ' <small>ext ' + extTotal + '</small>' : '') + '</div>'
-    + '<div style="font-size:10px;color:var(--dim)">' + inn.b1Name + ': ' + inn.b1.runs + ' &nbsp; ' + inn.b2Name + ': ' + inn.b2.runs + '</div></div>'
+    + '<div style="font-size:10px;color:var(--dim)">' + inn.b1Name + ': ' + inn.b1.runs + (inn.isSolo ? '' : ' &nbsp; ' + inn.b2Name + ': ' + inn.b2.runs) + '</div></div>'
     + '<div class="meta"><div><strong>' + oversDisplay(inn) + '</strong></div>'
     + '<div>Over ' + (inn.over + 1) + '/' + inn.maxOvers + '</div>'
     + (inn.freeHit ? '<div class="fh">\u2726 FREE HIT</div>' : '') + '</div></div>'
-    + '<div class="scoreboard">' + card(inn.b1, 1) + '<div style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--dim)">vs</div>' + card(inn.b2, 2) + '</div>'
+    + (inn.isSolo
+      ? '<div class="scoreboard">' + card(inn.b1, 1) + '</div>'
+      : '<div class="scoreboard">' + card(inn.b1, 1) + '<div style="display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--dim)">vs</div>' + card(inn.b2, 2) + '</div>')
     + (inn.complete
       ? '<button class="btn btn-orange btn-block" onclick="nextPair()" style="margin-bottom:10px">\u2713 Pair Complete — Select Next Pair</button>'
       : '<div class="over-tracker">' + dots.join('') + '</div>'
@@ -674,7 +681,7 @@ function renderMatch() {
       + '<button class="btn btn-dark" onclick="penaltyRuns()">Penalty</button></div>'
       + '<div class="action-btns">'
       + '<button class="btn ' + (inn.bonusActive ? 'btn-orange' : 'btn-dark') + '" onclick="toggleBonus()">+1 Bonus</button>'
-      + '<button class="btn btn-dark" onclick="swapStrike()">\u21c4 Swap</button>'
+      + (inn.isSolo ? '' : '<button class="btn btn-dark" onclick="swapStrike()">\u21c4 Swap</button>')
       + '<button class="btn btn-red" onclick="wicket()">WICKET</button>'
       + '<button class="btn btn-dark" onclick="undo()">\u21a9 Undo</button>'
       + '<button class="btn btn-dark" onclick="showLiveSessionStats()">Session Stats</button>'
@@ -693,8 +700,11 @@ function renderScorecard() {
   const ext = inn.extras;
   const extTotal = ext.wides + ext.noBalls + ext.byes + ext.legByes;
 
+  const bData = inn.isSolo
+    ? [{ name: inn.b1Name, runs: b1.runs, balls: b1.bf, dotBalls: b1.dotBalls, fours: b1.fours, sixes: b1.sixes, threes: b1.threes || 0, bonusRuns: b1.bonusRuns, howOut: b1.howOut, retired: b1.legalBf >= S().maxBallsPerBatter }]
+    : [{ name: inn.b1Name, runs: b1.runs, balls: b1.bf, dotBalls: b1.dotBalls, fours: b1.fours, sixes: b1.sixes, threes: b1.threes || 0, bonusRuns: b1.bonusRuns, howOut: b1.howOut, retired: b1.legalBf >= S().maxBallsPerBatter }, { name: inn.b2Name, runs: b2.runs, balls: b2.bf, dotBalls: b2.dotBalls, fours: b2.fours, sixes: b2.sixes, threes: b2.threes || 0, bonusRuns: b2.bonusRuns, howOut: b2.howOut, retired: b2.legalBf >= S().maxBallsPerBatter }];
   let bHtml = '';
-  for (const b of [{ name: inn.b1Name, runs: b1.runs, balls: b1.bf, dotBalls: b1.dotBalls, fours: b1.fours, sixes: b1.sixes, threes: b1.threes || 0, bonusRuns: b1.bonusRuns, howOut: b1.howOut, retired: b1.legalBf >= S().maxBallsPerBatter }, { name: inn.b2Name, runs: b2.runs, balls: b2.bf, dotBalls: b2.dotBalls, fours: b2.fours, sixes: b2.sixes, threes: b2.threes || 0, bonusRuns: b2.bonusRuns, howOut: b2.howOut, retired: b2.legalBf >= S().maxBallsPerBatter }]) {
+  for (const b of bData) {
     const dis = b.howOut || (b.retired ? 'Retired' : (inn.complete ? 'Not Out' : 'Batting'));
     bHtml += '<tr><td class="name">' + b.name + '</td><td>' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</td><td>' + b.balls + '</td><td>' + b.dotBalls + '</td><td>' + b.fours + '</td><td>' + b.sixes + '</td><td>' + b.threes + '</td><td>' + (b.bonusRuns || '') + '</td><td style="font-size:10px;color:var(--dim)">' + dis + '</td></tr>';
   }
@@ -788,7 +798,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
     if (runs === 6) st.sixes++;
     inn.total += total;
     inn.legalBalls++; inn.totalBalls++;
-    if (runs % 2 === 1) inn.striker = inn.striker === 1 ? 2 : 1;
+    if (runs % 2 === 1 && !inn.isSolo) inn.striker = inn.striker === 1 ? 2 : 1;
     inn.history.push({
       type: 'run', over: inn.over, ballNum: inn.legalBalls,
       b: inn.lastLegalStriker, runs: total, bonus: hadBonus,
@@ -898,7 +908,7 @@ function wideBall() {
     inn2.extras.wides += total;
     inn2.totalBalls++;
     const wideStriker = inn2.striker;
-    if (extra % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+    if (extra % 2 === 1 && !inn2.isSolo) inn2.striker = inn2.striker === 1 ? 2 : 1;
     const wbNum = inn2.totalBalls;
     inn2.history.push({
       type: 'wide', over: inn2.over, ballNum: wbNum,
@@ -931,7 +941,7 @@ function noBall() {
     inn2.extras.noBalls += 1;
     inn2.totalBalls++;
     const nbStriker = inn2.striker;
-    if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+    if (runs % 2 === 1 && !inn2.isSolo) inn2.striker = inn2.striker === 1 ? 2 : 1;
     const nbNum = inn2.totalBalls;
     inn2.history.push({
       type: 'noball', over: inn2.over, ballNum: nbNum,
@@ -962,7 +972,7 @@ function byes() {
     inn2.legalBalls++;
     inn2.totalBalls++;
     const byeStriker = inn2.striker;
-    if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+    if (runs % 2 === 1 && !inn2.isSolo) inn2.striker = inn2.striker === 1 ? 2 : 1;
     inn2.history.push({
       type: 'bye', over: inn2.over, ballNum: inn2.legalBalls,
       b: byeStriker, runs: runs, freeHit: false,
@@ -989,7 +999,7 @@ function legByes() {
     inn2.legalBalls++;
     inn2.totalBalls++;
     const lbStriker = inn2.striker;
-    if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+    if (runs % 2 === 1 && !inn2.isSolo) inn2.striker = inn2.striker === 1 ? 2 : 1;
     inn2.history.push({
       type: 'legbye', over: inn2.over, ballNum: inn2.legalBalls,
       b: lbStriker, runs: runs, freeHit: false,
@@ -1108,7 +1118,7 @@ function swapStrike() {
 
 function tryRotateStrike() {
   const inn = S().innings;
-  if (!inn) return;
+  if (!inn || inn.isSolo) return;
   if (!canBat(inn.striker)) {
     const other = inn.striker === 1 ? 2 : 1;
     if (canBat(other)) inn.striker = other;
@@ -1134,7 +1144,7 @@ function processWkt(mode, fielder, outB, runOutRuns) {
       if (runsOnPlay === 6) st.sixes++;
     }
     inn.total += runsOnPlay;
-    if (runOutRuns % 2 === 1 && outB !== inn.striker) {
+    if (!inn.isSolo && runOutRuns % 2 === 1 && outB !== inn.striker) {
       // Runs completed involved striker, change strike
       inn.striker = inn.striker === 1 ? 2 : 1;
     }
@@ -1181,7 +1191,7 @@ function processWkt(mode, fielder, outB, runOutRuns) {
     inn.totalBalls++;
     if (mode === 'Run Out' && outB !== inn.striker) {
       // non-striker out, striker keeps strike
-    } else {
+    } else if (!inn.isSolo) {
       inn.striker = inn.striker === 1 ? 2 : 1;
     }
     inn.history.push({
@@ -1203,7 +1213,7 @@ function checkOver() {
   if (!inn) return;
   if (inn.legalBalls >= 6) {
     inn.prevBowler = inn.currentBowler;
-    inn.striker = inn.striker === 1 ? 2 : 1;
+    if (!inn.isSolo) inn.striker = inn.striker === 1 ? 2 : 1;
     inn.over++;
     inn.legalBalls = 0;
     inn.freeHit = false;
@@ -1219,7 +1229,9 @@ function checkLimits() {
   const inn = S().innings;
   if (!inn) return;
   if (inn.over >= inn.maxOvers) inn.complete = true;
-  if (S().modifiedRules) {
+  if (inn.isSolo) {
+    if (inn.b1.legalBf >= S().maxBallsPerBatter || !canBat(1)) inn.complete = true;
+  } else if (S().modifiedRules) {
     if ((inn.b1.legalBf >= S().maxBallsPerBatter || !canBat(1)) && (inn.b2.legalBf >= S().maxBallsPerBatter || !canBat(2))) inn.complete = true;
   } else {
     if (inn.wkts >= 2) inn.complete = true;

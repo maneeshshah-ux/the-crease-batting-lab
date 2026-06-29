@@ -112,9 +112,10 @@
                             <a href="{{ url_for('download_session', session_id=session.session_id, filetype='json') }}"
                                class="btn btn-sm btn-outline-crease">JSON Data</a>
                             {% if session.num_shots_detected > 0 %}
-                            <button class="btn btn-sm btn-outline-crease" onclick="window.print()">
-                                <i class="bi bi-printer"></i> Print Report
-                            </button>
+                            <a href="{{ url_for('session_report', session_id=session.session_id) }}"
+                               class="btn btn-sm btn-outline-crease">
+                                <i class="bi bi-file-pdf"></i> Coaching Report
+                            </a>
                             {% endif %}
                         </div>
 

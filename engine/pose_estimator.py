@@ -8,6 +8,91 @@ Designed for side-on batting analysis (classic coaching view).
 import cv2
 import numpy as np
 import mediapipe as mp
+import os
+import shutil
+import urllib.request
+
+# ── Read-only filesystem workaround ────────────────────────────────────
+# MediaPipe 0.10.9 tries to download pose model .tflite files to the
+# site-packages directory at runtime.  On Render.com (and other read-only
+# filesystems) this fails with PermissionError.  We pre-download the model
+# and patch download_utils to fall back to /tmp/ when needed.
+
+_MP_MODEL_RELPATHS = {
+    0: "mediapipe/modules/pose_landmark/pose_landmark_lite.tflite",
+    2: "mediapipe/modules/pose_landmark/pose_landmark_heavy.tflite",
+}
+
+
+def _ensure_pose_model(model_complexity: int = 0):
+    """Ensure the MediaPipe pose model is available, even on read-only fs.
+
+    Tries the standard package-directory location first.  If that is not
+    writable, downloads to ``/tmp/`` and patches ``download_oss_model`` so
+    MediaPipe's ``Pose.__init__`` finds the model without writing to the
+    read-only location.
+    """
+    rel = _MP_MODEL_RELPATHS.get(model_complexity)
+    if rel is None:
+        return  # model_complexity=1 (full) ships with the wheel
+
+    try:
+        from mediapipe.python.solutions import download_utils as _du
+    except ImportError:
+        return
+
+    mp_root = os.sep.join(
+        os.path.abspath(_du.__file__).split(os.sep)[:-4]
+    )
+    model_abspath = os.path.join(mp_root, rel)
+
+    if os.path.exists(model_abspath):
+        return  # already present (local dev / build-time download)
+
+    model_url = _du._GCS_URL_PREFIX + rel.split("/")[-1]
+
+    # 1) Attempt normal download to package directory
+    try:
+        os.makedirs(os.path.dirname(model_abspath), exist_ok=True)
+        with urllib.request.urlopen(model_url) as resp, \
+                open(model_abspath, "wb") as f:
+            shutil.copyfileobj(resp, f)
+        return
+    except (PermissionError, OSError):
+        pass
+
+    # 2) Fallback: download to /tmp/
+    tmp_path = os.path.join("/tmp", rel)
+    os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
+    if not os.path.exists(tmp_path):
+        with urllib.request.urlopen(model_url) as resp, \
+                open(tmp_path, "wb") as f:
+            shutil.copyfileobj(resp, f)
+
+    # 3) Patch download_utils so Pose.__init__ skips the failed download
+    _original_download = _du.download_oss_model
+
+    def _patched_download(model_path: str):
+        """Download model to /tmp/ when site-packages is read-only."""
+        full_path = os.path.join(mp_root, model_path)
+        if os.path.exists(full_path):
+            return
+        # If the target dir is writable, delegate to original
+        target_dir = os.path.dirname(full_path)
+        if os.access(target_dir, os.W_OK):
+            _original_download(model_path)
+            return
+        # Otherwise download to /tmp/
+        local_path = os.path.join("/tmp", model_path)
+        os.makedirs(os.path.dirname(local_path), exist_ok=True)
+        if os.path.exists(local_path):
+            return
+        url = _du._GCS_URL_PREFIX + model_path.split("/")[-1]
+        with urllib.request.urlopen(url) as resp, \
+                open(local_path, "wb") as f:
+            shutil.copyfileobj(resp, f)
+
+    _du.download_oss_model = _patched_download
 
 # ── MediaPipe API compatibility ──────────────────────────────────────────
 # Different MediaPipe versions use different import paths.
@@ -93,6 +178,9 @@ class PoseEstimator:
             model_complexity: 0=lite, 1=full, 2=heavy
             smooth: Temporal smoothing across frames
         """
+        # Ensure pose model is available (handles read-only filesystems)
+        _ensure_pose_model(model_complexity)
+
         # Use module-level compatibility references
         if _mp_has_solutions:
             self.pose = _mp_pose.Pose(

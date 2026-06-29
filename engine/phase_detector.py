@@ -42,16 +42,25 @@ class PhaseDetector:
 
     Phase detection is liberal (any threshold crossing is labeled).
     Shot boundary detection is conservative (min duration + gap filtering).
+
+    Takes frame_step into account: thresholds and minimum shot/gap
+    durations are scaled so behaviour is consistent regardless of how
+    many frames are skipped during analysis.
     """
 
-    # Minimum shot duration (~0.5s at 30fps, ~0.3s at 60fps)
+    # Minimum shot duration in ORIGINAL frames (~0.5s at 30fps)
     MIN_SHOT_FRAMES = 15
-    # Minimum gap between separate shots
+    # Minimum gap between separate shots (original frames)
     MIN_GAP_FRAMES = 15
 
-    def __init__(self, batting_hand="right", fps=30):
+    def __init__(self, batting_hand="right", fps=30, frame_step=1):
         self.batting_hand = batting_hand
         self.fps = fps
+
+        # Scale minimums by frame_step so behaviour is consistent
+        # whether every frame or every Nth frame is analysed.
+        self.eff_min_shot_frames = max(5, self.MIN_SHOT_FRAMES // frame_step)
+        self.eff_min_gap_frames = max(3, self.MIN_GAP_FRAMES // frame_step)
 
         if batting_hand == "right":
             self.front_foot = "LEFT_HEEL"
@@ -135,8 +144,18 @@ class PhaseDetector:
 
         return self.phase_labels
 
+    def _frame_gap(self, i):
+        """Return the actual frame gap between frame_data[i] and frame_data[i-1]."""
+        if i <= 0 or i >= len(self.frame_data):
+            return 1
+        return max(1, self.frame_data[i]["frame"] - self.frame_data[i - 1]["frame"])
+
     def _compute_hand_velocity(self):
-        """Compute vertical velocity of hands (y-axis) across frames."""
+        """Compute vertical velocity of hands (y-axis) in pixels per frame.
+
+        Velocity is normalised by the actual frame gap so that thresholds
+        remain consistent regardless of frame_step size.
+        """
         velocities = []
         for i in range(len(self.frame_data)):
             lm = self.frame_data[i]["landmarks"]
@@ -159,13 +178,17 @@ class PhaseDetector:
                     prev_right = prev_lm.get("RIGHT_WRIST", {}).get("pixel_y", 0)
                     prev_avg = (prev_left + prev_right) / 2 if prev_left and prev_right else (prev_left or prev_right)
                     # Positive = moving down (in image coords)
-                    velocities.append(avg_y - prev_avg)
+                    gap = self._frame_gap(i)
+                    velocities.append((avg_y - prev_avg) / gap)
                 else:
                     velocities.append(0)
         return velocities
 
     def _compute_foot_velocity(self):
-        """Compute forward velocity of front foot."""
+        """Compute forward velocity of front foot in pixels per frame.
+
+        Normalised by actual frame gap for frame_step independence.
+        """
         velocities = []
         for i in range(len(self.frame_data)):
             lm = self.frame_data[i]["landmarks"]
@@ -182,26 +205,38 @@ class PhaseDetector:
                 prev_lm = self.frame_data[i - 1]["landmarks"]
                 prev_foot = prev_lm.get(self.front_foot, {})
                 prev_fx = prev_foot.get("pixel_x", 0)
-                velocities.append(fx - prev_fx)
+                gap = self._frame_gap(i)
+                velocities.append((fx - prev_fx) / gap)
 
         return velocities
 
     def _compute_bat_tip_velocity(self, bat_analyzer):
-        """Compute bat tip velocity if bat analyzer available."""
+        """Compute bat tip velocity if bat analyzer available.
+
+        Velocity is normalised by the actual frame gap for frame_step
+        independence.  Frame matching uses the real frame index stored
+        in frame_data, not the local loop counter.
+        """
         velocities = []
         if not bat_analyzer:
             return [0] * len(self.frame_data)
 
+        frame_data_list = list(bat_analyzer.history)
+        # Build a fast lookup: frame -> entry
+        frame_map = {h.get("frame"): h for h in frame_data_list if h.get("frame") is not None}
+
         for i in range(len(self.frame_data)):
-            frame_data_list = list(bat_analyzer.history)
-            matching = [h for h in frame_data_list if h.get("frame") == i]
-            if matching:
-                tip = matching[0].get("bat_tip")
-                if i > 0:
-                    prev_matching = [h for h in frame_data_list if h.get("frame") == i - 1]
-                    if prev_matching and tip and prev_matching[0].get("bat_tip"):
-                        prev_tip = prev_matching[0]["bat_tip"]
-                        vel = np.sqrt((tip[0] - prev_tip[0])**2 + (tip[1] - prev_tip[1])**2)
+            current_frame = self.frame_data[i]["frame"]
+            cur = frame_map.get(current_frame)
+            if cur:
+                tip = cur.get("bat_tip")
+                if i > 0 and tip:
+                    prev_frame = self.frame_data[i - 1]["frame"]
+                    prev = frame_map.get(prev_frame)
+                    if prev and prev.get("bat_tip"):
+                        prev_tip = prev["bat_tip"]
+                        gap = self._frame_gap(i)
+                        vel = np.sqrt((tip[0] - prev_tip[0])**2 + (tip[1] - prev_tip[1])**2) / gap
                         velocities.append(vel)
                     else:
                         velocities.append(0)
@@ -345,8 +380,10 @@ class PhaseDetector:
 
         Strategy:
         - Find all contiguous regions of shot-related phases
-        - Merge regions that are closer than MIN_GAP_FRAMES apart
-        - Discard regions shorter than MIN_SHOT_FRAMES
+        - Merge regions whose END FRAME NUMBER gap is smaller than
+          MIN_GAP_FRAMES (uses actual frame numbers, not frame_data indices)
+        - Discard regions shorter than MIN_SHOT_FRAMES in terms of
+          actual frame-count duration
 
         This conservative approach filters out noise (brief threshold crossings)
         while preserving real shots (sustained phase regions).
@@ -371,7 +408,9 @@ class PhaseDetector:
                         raw_shots.append(current_shot)
                     current_shot = []
                     in_shot = True
-                current_shot.append((i, p.value))
+                # Store the ACTUAL frame number, not frame_data index
+                actual_frame = self.frame_data[i]["frame"]
+                current_shot.append((actual_frame, p.value))
             else:
                 if in_shot:
                     in_shot = False
@@ -390,8 +429,9 @@ class PhaseDetector:
         filtered = [raw_shots[0]]
 
         for shot in raw_shots[1:]:
+            # Gap in ORIGINAL frame numbers
             gap = shot[0][0] - filtered[-1][-1][0]
-            if gap < self.MIN_GAP_FRAMES:
+            if gap < self.eff_min_gap_frames:
                 # Merge: extend the previous shot with gap frames
                 merged = filtered[-1]
                 for g in range(filtered[-1][-1][0] + 1, shot[0][0]):
@@ -401,9 +441,16 @@ class PhaseDetector:
                 # Gap sufficient — keep separate
                 filtered.append(shot)
 
-        # Step 3: Apply minimum duration filter
-        self.shot_events = [s for s in filtered
-                            if len(s) >= self.MIN_SHOT_FRAMES]
+        # Step 3: Apply minimum duration filter (in original frames)
+        self.shot_events = []
+        for s in filtered:
+            if not s:
+                continue
+            first_frame = s[0][0]
+            last_frame = s[-1][0]
+            total_frames = last_frame - first_frame + 1
+            if total_frames >= self.eff_min_shot_frames:
+                self.shot_events.append(s)
 
     def get_shot_count(self):
         """Get number of detected shots."""

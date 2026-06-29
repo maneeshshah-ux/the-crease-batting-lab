@@ -50,7 +50,8 @@ class BattingAnalyser:
         )
         self.bat_analyzer = BatAnalyzer(batting_hand=batting_hand,
                                         camera_view=camera_view)
-        self.phase_detector = PhaseDetector(batting_hand=batting_hand, fps=fps or 30)
+        self.phase_detector = PhaseDetector(batting_hand=batting_hand, fps=fps or 30,
+                                             frame_step=self.frame_step)
         self.metrics = MetricsCalculator(batting_hand=batting_hand, fps=fps or 30,
                                          camera_view=camera_view)
         self.visualizer = Visualizer(batting_hand=batting_hand)
