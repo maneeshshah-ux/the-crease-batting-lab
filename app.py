@@ -14,6 +14,7 @@ import json
 import uuid
 import threading
 import functools
+import cv2
 from datetime import datetime
 from pathlib import Path
 
