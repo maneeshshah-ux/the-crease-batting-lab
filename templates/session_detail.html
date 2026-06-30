@@ -149,13 +149,20 @@
                                    title="Share on Facebook">
                                     <i class="bi bi-facebook"></i>
                                 </a>
-                                <!-- Copy Link -->
+                                 <!-- Copy Link -->
                                 <button class="btn btn-sm btn-outline-crease share-btn"
                                         data-platform="copy"
                                         onclick="copyShareLink('{{ share_url }}')"
                                         title="Copy share link"
                                         style="font-size: 0.7rem; padding: 0.2rem 0.5rem;">
                                     <i class="bi bi-link-45deg"></i> Copy
+                                </button>
+                                <!-- Native Share (mobile) -->
+                                <button class="btn btn-sm btn-crease native-share-btn"
+                                        onclick="nativeShare()"
+                                        title="Share via your device"
+                                        style="font-size: 0.7rem; padding: 0.2rem 0.5rem; display: none;">
+                                    <i class="bi bi-share-fill"></i> Share
                                 </button>
                                 <!-- Download Scorecard -->
                                 <a href="{{ url_for('session_scorecard', session_id=session.session_id) }}"
@@ -261,10 +268,16 @@
                         type="video/mp4">
                 Your browser does not support video playback.
             </video>
+            {% elif session.video_path %}
+            <video class="w-100" controls playsinline style="max-height: 500px; display: block; background: #000;">
+                <source src="{{ url_for('download_session', session_id=session.session_id, filetype='original') }}"
+                        type="video/mp4">
+                Your browser does not support video playback.
+            </video>
             {% else %}
             <div class="text-center py-5" style="color: #888888;">
                 <i class="bi bi-camera-video-off" style="font-size: 3rem; color: #555;"></i>
-                <p class="mt-2">Analysed video not available for playback.</p>
+                <p class="mt-2">Video not available for playback.</p>
             </div>
             {% endif %}
         </div>
@@ -939,6 +952,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }, 200);
         }
     });
+    // Show native share button on devices that support it
+    if (navigator.share) {
+        document.querySelectorAll('.native-share-btn').forEach(function(btn) {
+            btn.style.display = 'inline-block';
+        });
+    }
 });
 
 // Copy share link to clipboard
@@ -952,6 +971,27 @@ function copyShareLink(url) {
         });
     } else {
         fallbackCopy(url);
+    }
+}
+
+// Native Web Share API (works on mobile)
+function nativeShare() {
+    var url = '{{ share_url }}';
+    var title = '{{ bragging.get("best_shot_label", "Batting Analysis")|e }}';
+    var text = '{{ bragging.get("one_liners", [])[0:1]|join("")|e }}';
+    if (navigator.share) {
+        navigator.share({
+            title: title || 'Batting Analysis',
+            text: text || 'Check out my batting analysis on the CREASE!',
+            url: url,
+        }).then(function() {
+            trackShare('native');
+        }).catch(function(err) {
+            // User cancelled or error — not a real failure
+            if (err.name !== 'AbortError') {
+                console.log('Share error:', err);
+            }
+        });
     }
 }
 

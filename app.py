@@ -840,16 +840,19 @@ def download_session(session_id, filetype):
         if path.exists():
             return send_from_directory(str(SESSION_DIR), f"{session_id}.json",
                                        as_attachment=True)
-    elif filetype == "video":
+    elif filetype in ("video", "original"):
         path = SESSION_DIR / f"{session_id}.json"
         if path.exists():
             with open(path) as f:
                 data = json.load(f)
-            vpath = data.get("output_video_path")
+            if filetype == "video":
+                vpath = data.get("output_video_path")
+            else:
+                vpath = data.get("video_path")
             if vpath and os.path.exists(vpath):
                 return send_from_directory(str(Path(vpath).parent),
                                            Path(vpath).name,
-                                           as_attachment=True)
+                                           as_attachment=False)
     return render_template("error.html", message="File not found"), 404
 
 
@@ -879,15 +882,34 @@ def _run_analysis(job_id, video_path, batting_hand, ball_color, camera_view):
         job["status"] = "processing"
         job["message"] = "Initializing analysis..."
 
+        # Dynamic frame_step: longer videos can skip more frames to keep
+        # analysis time reasonable on Render's free tier (512 MB, shared CPU).
+        temp_cap = cv2.VideoCapture(video_path)
+        _tf = int(temp_cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        _fps = temp_cap.get(cv2.CAP_PROP_FPS)
+        temp_cap.release()
+        _dur = _tf / max(_fps, 1)
+        if _dur > 120:
+            frame_step = 4
+        elif _dur > 60:
+            frame_step = 3
+        else:
+            frame_step = 2
+
         analyser = BattingAnalyser(
             batting_hand=batting_hand,
             ball_color=ball_color,
             camera_view=camera_view,
+            frame_step=frame_step,
         )
+        # Disable server-side video generation: mp4v codec isn't playable
+        # on mobile browsers, and H.264/avc1 requires libx264 which isn't
+        # available on the Render slim image.  The original video + pose
+        # overlay on the frontend is a better experience anyway.
         result = analyser.analyse_video(
             video_path=video_path,
             output_dir=str(SESSION_DIR),
-            generate_video=True,
+            generate_video=False,
             progress_callback=progress_cb,
         )
         analyser.close()

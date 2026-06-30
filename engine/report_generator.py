@@ -51,6 +51,52 @@ def _hex_to_rgb(h):
     return tuple(int(h[i:i+2], 16) for i in (0, 2, 4))
 
 
+# ── Cross-platform font helper ─────────────────────────────────────────
+# Render (Linux) doesn't have Helvetica; macOS does.  We try common system
+# font paths and fall back to downloading DejaVuSans to /tmp/ if needed.
+_DEJA_VU_URL = "https://raw.githubusercontent.com/matplotlib/matplotlib/main/lib/matplotlib/mpl-data/fonts/ttf/DejaVuSans.ttf"
+
+def _get_pil_font(size: int):
+    """Return a ``PIL.ImageFont`` of the requested size on any platform."""
+    from PIL import ImageFont
+
+    candidates = [
+        "/System/Library/Fonts/Helvetica.ttc",                     # macOS
+        "/System/Library/Fonts/Supplemental/Arial.ttf",            # macOS (older)
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",        # Linux (apt)
+        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # Linux
+        "/usr/share/fonts/TTF/DejaVuSans.ttf",                    # Linux (alt)
+    ]
+
+    for path in candidates:
+        if os.path.exists(path):
+            try:
+                return ImageFont.truetype(path, size)
+            except (OSError, IOError):
+                continue
+
+    # Last resort: download DejaVuSans to /tmp/ (happens once)
+    tmp_font = "/tmp/DejaVuSans.ttf"
+    if not os.path.exists(tmp_font):
+        try:
+            import urllib.request
+            import shutil
+            with urllib.request.urlopen(_DEJA_VU_URL) as resp, \
+                    open(tmp_font, "wb") as f:
+                shutil.copyfileobj(resp, f)
+        except Exception:
+            pass
+
+    if os.path.exists(tmp_font):
+        try:
+            return ImageFont.truetype(tmp_font, size)
+        except (OSError, IOError):
+            pass
+
+    # Absolute fallback — tiny but works everywhere
+    return ImageFont.load_default()
+
+
 def _compute_knee_score(avg_knee):
     """Score 0-100: 140 deg is optimal. Penalty increases with deviation."""
     return max(0, min(100, 100 - abs(avg_knee - 140) * 2.5))
@@ -702,9 +748,9 @@ class Report(FPDF):
 
         # Try to load a clean font, fall back to default
         try:
-            font_title = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 22)
-            font_body = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 16)
-            font_small = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 13)
+            font_title = _get_pil_font(22)
+            font_body = _get_pil_font(16)
+            font_small = _get_pil_font(13)
         except (OSError, IOError):
             font_title = ImageFont.load_default()
             font_body = font_title
