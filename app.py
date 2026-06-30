@@ -86,6 +86,20 @@ def allowed_file(filename):
     return ext in ALLOWED_EXTENSIONS
 
 
+def _find_session_file(session_id):
+    """
+    Locate a session JSON on disk, trying both filename patterns:
+        {session_id}.json  (legacy)
+        analysis_{session_id}.json  (current)
+    Returns Path or None.
+    """
+    p = SESSION_DIR / f"{session_id}.json"
+    if p.exists():
+        return p
+    p = SESSION_DIR / f"analysis_{session_id}.json"
+    return p if p.exists() else None
+
+
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
@@ -206,10 +220,8 @@ def api_job_status(job_id):
 @app.route("/session/<session_id>")
 def session_view(session_id):
     """View analysis results — OPEN TO EVERYONE."""
-    session_path = SESSION_DIR / f"{session_id}.json"
-    if not session_path.exists():
-        session_path = SESSION_DIR / f"analysis_{session_id}.json"
-    if not session_path.exists():
+    session_path = _find_session_file(session_id)
+    if not session_path:
         return render_template("error.html",
                                message=f"Session {session_id} not found"), 404
     with open(session_path) as f:
@@ -271,7 +283,16 @@ def shared_session(share_token):
         try:
             with open(f) as fh:
                 data = json.load(fh)
-            if data.get("share_token") == share_token or data.get("session_id") == share_token[:8]:
+            # Match by: share_token, session_id, or filename pattern
+            session_id_from_file = data.get("session_id", "")
+            share_token_from_data = data.get("share_token", "")
+            file_basename = f.stem  # e.g. "analysis_abc12345" or "abc12345"
+
+            if (share_token_from_data == share_token
+                    or session_id_from_file == share_token
+                    or session_id_from_file == share_token[:8]
+                    or file_basename.endswith(share_token)
+                    or file_basename.endswith(share_token[:8])):
                 # Convert flat phase list [[frame, name], ...] to segments
                 raw_phases = data.get("phases", [])
                 if raw_phases and isinstance(raw_phases[0], list):
@@ -330,8 +351,8 @@ def api_track_share(session_id):
 @app.route("/session/<session_id>/qr")
 def session_qr(session_id):
     """Generate and serve a QR code for the session's multi-camera code."""
-    path = SESSION_DIR / f"{session_id}.json"
-    if not path.exists():
+    path = _find_session_file(session_id)
+    if not path:
         return render_template("error.html", message="Session not found"), 404
     with open(path) as f:
         data = json.load(f)
@@ -494,8 +515,8 @@ def download_file(filename):
 @app.route("/session/<session_id>/scorecard")
 def session_scorecard(session_id):
     """Generate and serve a shareable scorecard image for this session."""
-    path = SESSION_DIR / f"{session_id}.json"
-    if not path.exists():
+    path = _find_session_file(session_id)
+    if not path:
         return render_template("error.html", message="Session not found"), 404
     with open(path) as f:
         data = json.load(f)
@@ -514,10 +535,8 @@ def session_scorecard(session_id):
 @app.route("/session/<session_id>/report")
 def session_report(session_id):
     """Generate and download a professional PDF coaching report for this session."""
-    path = SESSION_DIR / f"{session_id}.json"
-    if not path.exists():
-        path = SESSION_DIR / f"analysis_{session_id}.json"
-    if not path.exists():
+    path = _find_session_file(session_id)
+    if not path:
         return render_template("error.html",
                                message=f"Session {session_id} not found"), 404
 
@@ -593,8 +612,8 @@ def session_report(session_id):
 @app.route("/session/<session_id>/highlight/<int:clip_idx>")
 def session_highlight(session_id, clip_idx):
     """Generate and serve a highlight clip. clip_idx=1 means best clip."""
-    path = SESSION_DIR / f"{session_id}.json"
-    if not path.exists():
+    path = _find_session_file(session_id)
+    if not path:
         return render_template("error.html", message="Session not found"), 404
     with open(path) as f:
         data = json.load(f)
@@ -668,8 +687,8 @@ def sessions_list():
 @app.route("/delete/<session_id>", methods=["POST"])
 def delete_session(session_id):
     """Delete a single session."""
-    path = SESSION_DIR / f"{session_id}.json"
-    if path.exists():
+    path = _find_session_file(session_id)
+    if path:
         path.unlink()
     return redirect(url_for("sessions_list"))
 
@@ -716,8 +735,8 @@ def api_compare():
 @app.route("/pro-compare/<session_id>")
 def pro_compare_view(session_id):
     """Pro Comparison page — compare your session against professional players."""
-    session_path = SESSION_DIR / f"{session_id}.json"
-    if not session_path.exists():
+    session_path = _find_session_file(session_id)
+    if not session_path:
         return render_template("error.html",
                                message=f"Session {session_id} not found"), 404
     with open(session_path) as f:
@@ -742,8 +761,8 @@ def pro_compare_view(session_id):
 @app.route("/api/pro-compare/<session_id>")
 def api_pro_compare(session_id):
     """API: Get pro comparison data for a session."""
-    session_path = SESSION_DIR / f"{session_id}.json"
-    if not session_path.exists():
+    session_path = _find_session_file(session_id)
+    if not session_path:
         return jsonify({"error": "Session not found"}), 404
     with open(session_path) as f:
         data = json.load(f)
@@ -777,8 +796,8 @@ def api_pro_disclaimer():
 @app.route("/zonal-compare/<session_id>")
 def zonal_compare_view(session_id):
     """Zonal Comparison page — zone-level + player-level matching."""
-    session_path = SESSION_DIR / f"{session_id}.json"
-    if not session_path.exists():
+    session_path = _find_session_file(session_id)
+    if not session_path:
         return render_template("error.html",
                                message=f"Session {session_id} not found"), 404
     with open(session_path) as f:
@@ -802,8 +821,8 @@ def zonal_compare_view(session_id):
 @app.route("/api/zonal-compare/<session_id>")
 def api_zonal_compare(session_id):
     """API: Get zonal comparison data for a session."""
-    session_path = SESSION_DIR / f"{session_id}.json"
-    if not session_path.exists():
+    session_path = _find_session_file(session_id)
+    if not session_path:
         return jsonify({"error": "Session not found"}), 404
     with open(session_path) as f:
         data = json.load(f)
@@ -837,13 +856,13 @@ def api_zonal_players():
 def download_session(session_id, filetype):
     """Download analysis results."""
     if filetype == "json":
-        path = SESSION_DIR / f"{session_id}.json"
-        if path.exists():
-            return send_from_directory(str(SESSION_DIR), f"{session_id}.json",
+        path = _find_session_file(session_id)
+        if path:
+            return send_from_directory(str(SESSION_DIR), path.name,
                                        as_attachment=True)
     elif filetype in ("video", "original"):
-        path = SESSION_DIR / f"{session_id}.json"
-        if path.exists():
+        path = _find_session_file(session_id)
+        if path:
             with open(path) as f:
                 data = json.load(f)
             if filetype == "video":
@@ -853,6 +872,7 @@ def download_session(session_id, filetype):
             if vpath and os.path.exists(vpath):
                 return send_from_directory(str(Path(vpath).parent),
                                            Path(vpath).name,
+                                           mimetype=None,
                                            as_attachment=False)
     return render_template("error.html", message="File not found"), 404
 
@@ -912,36 +932,34 @@ def _run_analysis(job_id, video_path, batting_hand, ball_color, camera_view):
             output_dir=str(SESSION_DIR),
             generate_video=False,
             progress_callback=progress_cb,
+            share_token=job.get("share_token", ""),
         )
         analyser.close()
 
         result["camera_view"] = camera_view
         result["batting_hand"] = batting_hand
         result["ball_color"] = ball_color
+        result["session_label"] = job.get("session_label", "")
+        result["session_code"] = job.get("session_code", "")
 
         if result["success"]:
             job["status"] = "completed"
             job["progress"] = 100
             job["message"] = "Analysis complete!"
-            # Add share token for viral distribution
-            result["share_token"] = job.get("share_token", "")
-            result["session_label"] = job.get("session_label", "")
-            result["session_code"] = job.get("session_code", "")
             job["result"] = result
 
-            # Update the saved JSON with share token and session code
+            # Update the saved JSON with extra fields added after analysis
             result_path = result.get("result_path")
             if result_path and os.path.exists(result_path):
                 try:
                     with open(result_path) as f:
                         saved = json.load(f)
-                    saved["share_token"] = result["share_token"]
                     saved["session_label"] = result["session_label"]
                     saved["session_code"] = result["session_code"]
                     with open(result_path, "w") as f:
                         json.dump(saved, f, indent=2, default=str)
-                except Exception:
-                    pass
+                except Exception as exc:
+                    print(f"[save_session] Warning: could not update JSON: {exc}")
         else:
             job["status"] = "failed"
             job["error"] = result.get("error", "Unknown error")

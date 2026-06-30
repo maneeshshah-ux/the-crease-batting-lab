@@ -113,7 +113,7 @@
                                class="btn btn-sm btn-outline-crease">JSON Data</a>
                             {% if session.num_shots_detected > 0 %}
                             <a href="{{ url_for('session_report', session_id=session.session_id) }}"
-                               class="btn btn-sm btn-outline-crease">
+                               class="btn btn-sm btn-outline-crease" target="_blank" rel="noopener">
                                 <i class="bi bi-file-pdf"></i> Coaching Report
                             </a>
                             {% endif %}

@@ -58,7 +58,7 @@ class BattingAnalyser:
         self.calibration_px_per_m = None  # set after analysis loop
 
     def analyse_video(self, video_path, output_dir=None, generate_video=True,
-                      progress_callback=None):
+                       progress_callback=None, share_token=None):
         """
         Run full analysis on a video file.
 
@@ -340,6 +340,7 @@ class BattingAnalyser:
         result = {
             "success": True,
             "session_id": session_id,
+            "share_token": share_token or session_id[:10],
             "video_path": video_path,
             "output_video_path": output_video_path,
             "total_frames": total_frames,
