@@ -94,7 +94,7 @@ class BattingAnalyser:
         # Output video writer
         if generate_video:
             output_video_path = os.path.join(output_dir, f"analysis_{session_id}.mp4")
-            fourcc = cv2.VideoWriter_fourcc(*'avc1')  # H.264 — 5-10x smaller than mp4v
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # MPEG-4 (built-in FFmpeg encoder, no libx264 needed)
             out_writer = cv2.VideoWriter(output_video_path, fourcc,
                                          max(1, video_fps), (w, h))
         else:
