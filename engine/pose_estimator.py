@@ -20,17 +20,17 @@ import urllib.request
 # On Render.com (read-only filesystem) the download fails with
 # PermissionError because site-packages is not writable.
 #
-# Our fix:
-#   1. Pre-download the missing .tflite files to /tmp/
-#   2. Copy bundled .tflite files that would be masked by a resource-dir
-#      change to /tmp/ as well
-#   3. Redirect MediaPipe's C++ resource directory (resource_util) to /tmp/
-#      AFTER SolutionBase.__init__ sets it (because SolutionBase.__init__
-#      always resets it to site-packages).
+# Our fix: _prepare_environment() runs BEFORE Pose.__init__() and:
+#   1. Pre-populates /tmp/ with ALL model files (bundled + downloaded)
+#   2. Sets resource_util to /tmp/ 
+#   3. Monkey-patches resource_util.set_resource_dir → NO-OP
+#      (prevents SolutionBase.__init__ from overriding back to site-packages)
+#   4. Patches download_oss_model → redirect to /tmp/ (safety net)
 #
-# The C++ calculators (PoseDetection, PoseLandmarkByRoiCpu) load model
-# files relative to resource_util's resource dir.  By pointing it at /tmp/
-# they find the files we pre-downloaded.
+# The CalculatorGraph is then built with /tmp/ as the resource root from
+# the very beginning. C++ calculators resolve relative paths like
+# "mediapipe/modules/pose_landmark/pose_landmark_lite.tflite" against /tmp/
+# and find the model files we pre-populated.
 # ──────────────────────────────────────────────────────────────────────────
 
 # Models NOT bundled in the wheel (downloaded at runtime)
@@ -39,8 +39,8 @@ _MP_MODEL_DOWNLOAD_RELPATHS = {
     2: "mediapipe/modules/pose_landmark/pose_landmark_heavy.tflite",
 }
 
-# Models bundled in the wheel but needed after resource-dir redirect
-# (must be copied to /tmp/ so they remain findable)
+# Models bundled in the wheel but needed in /tmp/ after resource-dir redirect
+# (copied to /tmp/ so C++ calculators find them after resource root changes)
 _MP_MODEL_COPY_RELPATHS = [
     "mediapipe/modules/pose_detection/pose_detection.tflite",
     "mediapipe/modules/pose_landmark/pose_landmark_full.tflite",
@@ -68,42 +68,79 @@ def _get_mp_root():
 
 
 # ---------------------------------------------------------------------------
-# PART A — Run BEFORE Pose.__init__()
-# Pose.__init__() calls _download_oss_pose_landmark_model() which tries to
-# write to site-packages.  We must pre-download the model and patch
-# download_oss_model so that call succeeds (writes to /tmp/ instead).
+# _prepare_environment — MUST be called BEFORE Pose.__init__()
+#
+# Problem: SolutionBase.__init__() does two things that break on read-only
+# filesystems:
+#   1. Calls resource_util.set_resource_dir() → sets to site-packages
+#   2. Creates/starts the CalculatorGraph, which bakes in the resource dir
+#
+# Our fix:
+#   a. Pre-populate /tmp/ with ALL model files (bundled + downloaded)
+#   b. Set resource_util to /tmp/
+#   c. Monkey-patch resource_util.set_resource_dir → NO-OP
+#      (prevents SolutionBase.__init__ from overriding our dir)
+#   d. Patch download_oss_model → redirect to /tmp/ (safety net)
+#
+# This way the CalculatorGraph is created with /tmp/ as the resource root
+# from the very beginning.
 # ---------------------------------------------------------------------------
 
-def _pre_download_and_patch(model_complexity: int = 0):
-    """Pre-download missing pose model to /tmp/ and patch download_oss_model.
+def _prepare_environment(model_complexity: int = 0):
+    """Set up /tmp/ as the MediaPipe resource dir BEFORE Pose.__init__().
 
-    Must be called BEFORE ``Pose.__init__()`` so that the ``PermissionError``
-    from ``download_oss_model`` is never raised.
+    Must be called BEFORE ``Pose.__init__()`` (i.e. before
+    ``SolutionBase.__init__()`` runs) so that:
+    - The C++ CalculatorGraph is built with /tmp/ as the resource root.
+    - ``download_oss_model`` writes to /tmp/ instead of read-only site-packages.
+
+    No-op on writable filesystems (local dev) — only activates on read-only
+    hosts such as Render.com.
     """
     if not _is_readonly_fs():
         return
 
-    rel = _MP_MODEL_DOWNLOAD_RELPATHS.get(model_complexity)
-    try:
-        from mediapipe.python.solutions import download_utils as _du
-    except ImportError:
-        return
+    import mediapipe.python.solutions.download_utils as _du
+    from mediapipe.python._framework_bindings import resource_util as _ru
 
     mp_root = _get_mp_root()
 
-    # ── 1. Pre-download missing pose landmark model to /tmp/ ────────────
+    # ── 1. Populate /tmp/ with ALL model files ──────────────────────────
+    #    (a) Bundled models: copy from site-packages to /tmp/
+    for copy_rel in _MP_MODEL_COPY_RELPATHS:
+        dst = os.path.join("/tmp", copy_rel)
+        if not os.path.exists(dst):
+            src = os.path.join(mp_root, copy_rel)
+            if os.path.exists(src):
+                os.makedirs(os.path.dirname(dst), exist_ok=True)
+                shutil.copy2(src, dst)
+
+    #    (b) Downloaded model: pre-download to /tmp/ if missing
+    rel = _MP_MODEL_DOWNLOAD_RELPATHS.get(model_complexity)
     if rel is not None:
-        tmp_model = os.path.join("/tmp", rel)
-        os.makedirs(os.path.dirname(tmp_model), exist_ok=True)
-        if not os.path.exists(tmp_model):
+        dst = os.path.join("/tmp", rel)
+        if not os.path.exists(dst):
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
             model_url = _du._GCS_URL_PREFIX + rel.split("/")[-1]
             with urllib.request.urlopen(model_url) as resp, \
-                    open(tmp_model, "wb") as f:
+                    open(dst, "wb") as f:
                 shutil.copyfileobj(resp, f)
 
-    # ── 2. Patch download_oss_model to redirect to /tmp/ ────────────────
-    # This prevents the PermissionError when Pose.__init__() tries to
-    # download the model (it already exists in /tmp/ so it's a no-op).
+    # ── 2. Set resource dir to /tmp/ BEFORE SolutionBase.__init__ ──────
+    _ru.set_resource_dir("/tmp/")
+
+    # ── 3. Monkey-patch set_resource_dir to NO-OP ──────────────────────
+    # SolutionBase.__init__() calls set_resource_dir() with the
+    # site-packages path.  We must ignore that call so the resource dir
+    # stays at /tmp/ when the CalculatorGraph is created.
+
+    def _patched_set(path):
+        pass  # ignore — /tmp/ is where all our models live
+
+    _ru.set_resource_dir = _patched_set
+
+    # ── 4. Monkey-patch download_oss_model → /tmp/ (safety net) ────────
+    # Prevents PermissionError if any lazy download fires inside __init__.
     _original_download = _du.download_oss_model
 
     def _patched_download(model_path: str):
@@ -124,44 +161,6 @@ def _pre_download_and_patch(model_complexity: int = 0):
             shutil.copyfileobj(resp, f)
 
     _du.download_oss_model = _patched_download
-
-
-# ---------------------------------------------------------------------------
-# PART B — Run AFTER Pose.__init__() (i.e. after SolutionBase.__init__)
-# SolutionBase.__init__() calls resource_util.set_resource_dir() pointing to
-# site-packages.  We must redirect it to /tmp/ so the C++ calculators find
-# the models we pre-downloaded.
-# ---------------------------------------------------------------------------
-
-def _redirect_resource_dir_after_init():
-    """Redirect resource_util to /tmp/ and copy bundled models there.
-
-    Must be called AFTER ``SolutionBase.__init__()`` has run (i.e. after
-    creating the ``Pose`` object) so that our ``set_resource_dir()`` call
-    is not overwritten.
-    """
-    if not _is_readonly_fs():
-        return
-
-    try:
-        from mediapipe.python._framework_bindings import resource_util as _ru
-    except ImportError:
-        return
-
-    mp_root = _get_mp_root()
-
-    # ── 1. Copy bundled models that will be masked by the dir redirect ──
-    for copy_rel in _MP_MODEL_COPY_RELPATHS:
-        tmp_path = os.path.join("/tmp", copy_rel)
-        if os.path.exists(tmp_path):
-            continue
-        src = os.path.join(mp_root, copy_rel)
-        if os.path.exists(src):
-            os.makedirs(os.path.dirname(tmp_path), exist_ok=True)
-            shutil.copy2(src, tmp_path)
-
-    # ── 2. Redirect resource dir so C++ calculators find models in /tmp/ ─
-    _ru.set_resource_dir("/tmp/")
 
 # ── MediaPipe API compatibility ──────────────────────────────────────────
 # Different MediaPipe versions use different import paths.
@@ -247,15 +246,18 @@ class PoseEstimator:
             model_complexity: 0=lite, 1=full, 2=heavy
             smooth: Temporal smoothing across frames
         """
-        # ── PART A: BEFORE Pose.__init__() ──────────────────────────────
-        # Pre-download models and patch download_oss_model so the
-        # PermissionError from download_oss_model() is never raised.
-        _pre_download_and_patch(model_complexity)
+        # ── Prepare /tmp/ resource dir BEFORE Pose.__init__() ───────────
+        # This populates /tmp/ with all model files, sets resource_util to
+        # /tmp/, and prevents SolutionBase.__init__() from overriding it.
+        # The CalculatorGraph is then built with /tmp/ as the resource root
+        # from the very beginning, so C++ calculators find all models.
+        _prepare_environment(model_complexity)
 
         # ── Create the MediaPipe Pose object ──────────────────────────
-        # Pose.__init__() calls _download_oss_pose_landmark_model() which
-        # would hit PermissionError on read-only fs — but our patch
-        # redirects it to /tmp/, so it succeeds.
+        # Pose.__init__() calls SolutionBase.__init__() which:
+        #   - Sets resource dir → NO-OP (monkey-patched in prepare)
+        #   - Builds CalculatorGraph with /tmp/ as resource root
+        #   - Calls download_oss_model → redirected to /tmp/ (no crash)
         if _mp_has_solutions:
             self.pose = _mp_pose.Pose(
                 static_image_mode=static_mode,
@@ -266,12 +268,6 @@ class PoseEstimator:
                 min_detection_confidence=min_detection_confidence,
                 min_tracking_confidence=min_tracking_confidence,
             )
-
-            # ── PART B: AFTER Pose.__init__() ─────────────────────────
-            # SolutionBase.__init__() (called by Pose.__init__) resets the
-            # resource dir to site-packages.  Redirect it to /tmp/ so the
-            # C++ calculators find our pre-downloaded models.
-            _redirect_resource_dir_after_init()
         else:
             # New-style MediaPipe API (pose_landmarker based)
             from mediapipe.tasks.python.vision import PoseLandmarker, PoseLandmarkerOptions
