@@ -269,9 +269,13 @@
                 Your browser does not support video playback.
             </video>
             {% elif session.video_path %}
+            {% set video_ext = session.video_path.rsplit('.', 1)[-1].lower() %}
+            {% set video_mime = {'mp4': 'video/mp4', 'mov': 'video/quicktime', 'avi': 'video/x-msvideo',
+                                 'mkv': 'video/x-matroska', 'webm': 'video/webm', 'm4v': 'video/mp4',
+                                 '3gp': 'video/3gpp'}.get(video_ext, 'video/mp4') %}
             <video class="w-100" controls playsinline style="max-height: 500px; display: block; background: #000;">
                 <source src="{{ url_for('download_session', session_id=session.session_id, filetype='original') }}"
-                        type="video/mp4">
+                        type="{{ video_mime }}">
                 Your browser does not support video playback.
             </video>
             {% else %}
