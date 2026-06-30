@@ -18,6 +18,7 @@ import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
+import android.util.Log;
 import android.webkit.*;
 import android.widget.*;
 import java.io.*;
@@ -86,6 +87,11 @@ public class MainActivity extends Activity {
         settings.setDisplayZoomControls(false);
         settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
+        // Enable remote debugging via chrome://inspect
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+            WebView.setWebContentsDebuggingEnabled(true);
+        }
+
         // Main WebView client — intercepts asset requests and serves from bundle
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -141,6 +147,12 @@ public class MainActivity extends Activity {
 
         // Handle JavaScript dialogs (alert, confirm) so buttons work in the app
         webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onConsoleMessage(ConsoleMessage cm) {
+                Log.d("WebView", cm.message() + " -- from " + cm.sourceId() + ":" + cm.lineNumber());
+                return true;
+            }
+
             @Override
             public boolean onJsAlert(WebView view, String url, String message, JsResult result) {
                 new AlertDialog.Builder(MainActivity.this)
