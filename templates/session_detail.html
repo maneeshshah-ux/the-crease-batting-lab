@@ -112,10 +112,10 @@
                             <a href="{{ url_for('download_session', session_id=session.session_id, filetype='json') }}"
                                class="btn btn-sm btn-outline-crease">JSON Data</a>
                             {% if session.num_shots_detected > 0 %}
-                            <a href="{{ url_for('session_report', session_id=session.session_id) }}"
-                               class="btn btn-sm btn-outline-crease" target="_blank" rel="noopener">
-                                <i class="bi bi-file-pdf"></i> Coaching Report
-                            </a>
+                            <button onclick="downloadReport()"
+                               class="btn btn-sm btn-outline-crease" id="reportBtn">
+                                <i class="bi bi-file-pdf"></i> <span id="reportLabel">Coaching Report</span>
+                            </button>
                             {% endif %}
                         </div>
 
@@ -1058,6 +1058,18 @@ function showToast(msg, type) {
         toast.style.opacity = '0';
         setTimeout(function() { toast.remove(); }, 300);
     }, 2500);
+}
+
+// Download coaching report with loading feedback
+function downloadReport() {
+    var btn = document.getElementById('reportBtn');
+    var label = document.getElementById('reportLabel');
+    if (!btn || !label) return;
+    label.textContent = 'Generating...';
+    btn.disabled = true;
+    btn.style.opacity = '0.6';
+    // Navigate to the report URL — starts download
+    window.location.href = '{{ url_for("session_report", session_id=session.session_id) }}';
 }
 </script>
 {% endblock %}
