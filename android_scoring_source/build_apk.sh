@@ -13,7 +13,7 @@ BUILD_TOOLS="$ANDROID_HOME/build-tools/34.0.0"
 PLATFORM="$ANDROID_HOME/platforms/android-34"
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_NAME="the_CREASE_Scoring"
-APP_VERSION="v1.0.0"
+APP_VERSION="v1.1.0"
 PACKAGE="com.crease.scoring"
 
 export PATH="$JAVA_HOME/bin:$BUILD_TOOLS:$PATH"

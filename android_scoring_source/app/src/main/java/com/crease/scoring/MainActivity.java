@@ -20,14 +20,16 @@ import android.view.MenuItem;
 import android.view.View;
 import android.webkit.*;
 import android.widget.*;
-import java.io.File;
+import java.io.*;
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 
 /**
  * the CREASE Cricket Scoring — Android WebView App
  *
- * A native Android wrapper that loads the Scoring App PWA.
- * Default URL: https://the-crease-batting-lab.onrender.com/scoring/
+ * A native Android wrapper that loads the Scoring App.
+ * Loads from bundled assets for offline use.
+ * Uses a virtual origin (https://crease.app/) so localStorage works properly.
  */
 public class MainActivity extends Activity {
 
@@ -36,19 +38,23 @@ public class MainActivity extends Activity {
     private TextView loadingText;
     private ProgressBar loadingProgress;
     private LinearLayout errorView;
-    private String serverUrl = "https://the-crease-batting-lab.onrender.com/scoring/";
+    private String appOrigin = "https://crease.app";
     private boolean isFirstLoad = true;
     private static final String PREFS_NAME = "crease_scoring_prefs";
     private static final String KEY_SERVER_URL = "server_url";
+    private String lastError = null;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // Load saved server URL
+        // Load saved server URL (for remote loading fallback)
         SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-        serverUrl = prefs.getString(KEY_SERVER_URL, serverUrl);
+        String savedOrigin = prefs.getString(KEY_SERVER_URL, appOrigin);
+        if (savedOrigin != null && savedOrigin.startsWith("http")) {
+            appOrigin = savedOrigin;
+        }
 
         // Initialize views
         webView = findViewById(R.id.webview);
@@ -69,23 +75,44 @@ public class MainActivity extends Activity {
         settings.setJavaScriptEnabled(true);
         settings.setDomStorageEnabled(true);
         settings.setDatabaseEnabled(true);
-        settings.setAllowFileAccess(true);
-        settings.setAllowContentAccess(true);
+        settings.setAllowFileAccess(false);
+        settings.setAllowContentAccess(false);
+        settings.setAllowFileAccessFromFileURLs(false);
+        settings.setAllowUniversalAccessFromFileURLs(false);
         settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setBuiltInZoomControls(false);
         settings.setDisplayZoomControls(false);
-        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
+        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
 
-        // Main WebView client
+        // Main WebView client — intercepts asset requests and serves from bundle
         webView.setWebViewClient(new WebViewClient() {
             @Override
-            public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
-                super.onPageStarted(view, url, favicon);
-                if (isFirstLoad) {
-                    showLoading("Loading the CREASE Scoring...");
+            public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
+                Uri uri = request.getUrl();
+                // Serve bundled assets when the virtual origin is requested
+                if (appOrigin.equals(uri.getScheme() + "://" + uri.getHost())) {
+                    String path = uri.getPath(); // e.g. "/crease_logo.png"
+                    if (path != null && path.length() > 1) {
+                        String assetPath = path.substring(1); // remove leading "/"
+                        try {
+                            InputStream is = getAssets().open(assetPath);
+                            String mime = "application/octet-stream";
+                            if (assetPath.endsWith(".html")) mime = "text/html; charset=UTF-8";
+                            else if (assetPath.endsWith(".png")) mime = "image/png";
+                            else if (assetPath.endsWith(".json")) mime = "application/json";
+                            else if (assetPath.endsWith(".js")) mime = "application/javascript";
+                            else if (assetPath.endsWith(".css")) mime = "text/css";
+                            else if (assetPath.endsWith(".svg")) mime = "image/svg+xml";
+                            else if (assetPath.endsWith(".ico")) mime = "image/x-icon";
+                            return new WebResourceResponse(mime, "UTF-8", is);
+                        } catch (IOException e) {
+                            // Asset not in bundle — let WebView handle (will fail gracefully)
+                        }
+                    }
                 }
+                return null; // Default handling
             }
 
             @Override
@@ -100,16 +127,10 @@ public class MainActivity extends Activity {
                     WebResourceError error) {
                 super.onReceivedError(view, request, error);
                 if (isFirstLoad) {
-                    showError("Cannot connect to server.\n\n" +
-                             "Make sure you have internet access.\n\n" +
-                             "Server URL: " + serverUrl);
+                    lastError = String.valueOf(error.getDescription());
+                    showError("Failed to load the scoring app.\n\n" +
+                             "Error: " + lastError);
                 }
-            }
-
-            @Override
-            public void onReceivedSslError(WebView view, SslErrorHandler handler,
-                    android.net.http.SslError error) {
-                handler.proceed(); // Allow valid SSL certs
             }
         });
 
@@ -155,7 +176,26 @@ public class MainActivity extends Activity {
 
     private void loadApp() {
         showLoading("Loading the CREASE Scoring...");
-        webView.loadUrl(serverUrl);
+        try {
+            // Read the HTML from assets
+            InputStream is = getAssets().open("index.html");
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buf = new byte[4096];
+            int n;
+            while ((n = is.read(buf)) != -1) {
+                baos.write(buf, 0, n);
+            }
+            is.close();
+            String html = baos.toString("UTF-8");
+
+            // Load with virtual origin — relative URLs like crease_logo.png
+            // resolve to https://crease.app/crease_logo.png and are intercepted
+            // by shouldInterceptRequest which serves them from assets.
+            // This gives us a valid HTTPS origin for localStorage and JS.
+            webView.loadDataWithBaseURL(appOrigin + "/", html, "text/html", "UTF-8", null);
+        } catch (IOException e) {
+            showError("Failed to read app data: " + e.getMessage());
+        }
     }
 
     // Loading overlay
@@ -226,31 +266,32 @@ public class MainActivity extends Activity {
     // Server URL configuration dialog
     private void showServerDialog() {
         final EditText input = new EditText(this);
-        input.setText(serverUrl);
+        input.setText(appOrigin);
         input.setSelectAllOnFocus(true);
-        input.setTextColor(0xffC0C0C0);
         input.setHint("e.g. https://example.com/scoring/");
         input.setHintTextColor(0xff888888);
 
         new android.app.AlertDialog.Builder(this)
             .setTitle("Server URL")
-            .setMessage("Enter the URL where the Scoring App is hosted:")
+            .setMessage("Enter the URL where the Scoring App is hosted (or 'local' for bundled app):")
             .setView(input)
             .setPositiveButton("Connect", new android.content.DialogInterface.OnClickListener() {
                 @Override
                 public void onClick(android.content.DialogInterface dialog, int which) {
-                    String url = input.getText().toString().trim();
-                    if (!url.isEmpty()) {
-                        serverUrl = url;
-                        SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
-                        prefs.edit().putString(KEY_SERVER_URL, serverUrl).apply();
-                        if (errorView != null) {
-                            ((android.widget.FrameLayout) findViewById(R.id.webview_container))
-                                .removeView(errorView);
-                            errorView = null;
-                        }
-                        loadApp();
+                    String url = input.getText().toString().trim().toLowerCase();
+                    if ("local".equals(url)) {
+                        appOrigin = "https://crease.app";
+                    } else if (!url.isEmpty()) {
+                        appOrigin = url;
                     }
+                    SharedPreferences prefs = getSharedPreferences(PREFS_NAME, MODE_PRIVATE);
+                    prefs.edit().putString(KEY_SERVER_URL, appOrigin).apply();
+                    if (errorView != null) {
+                        ((android.widget.FrameLayout) findViewById(R.id.webview_container))
+                            .removeView(errorView);
+                        errorView = null;
+                    }
+                    loadApp();
                 }
             })
             .setNegativeButton("Cancel", null)
@@ -260,8 +301,48 @@ public class MainActivity extends Activity {
     // Back button navigation
     @Override
     public boolean onKeyDown(int keyCode, KeyEvent event) {
-        if (keyCode == KeyEvent.KEYCODE_BACK && webView.canGoBack()) {
-            webView.goBack();
+        if (keyCode == KeyEvent.KEYCODE_BACK) {
+            if (webView.canGoBack()) {
+                webView.goBack();
+                return true;
+            }
+            // Single-page app: navigate within the app via JavaScript
+            // Step 1: Try closing any open modals (saved sessions, innings summary, etc.)
+            // Step 2: If view isn't setup, go back to setup
+            // Step 3: If all else fails, close the app
+            webView.evaluateJavascript(
+                "(function() { " +
+                "  try { " +
+                "    if (typeof closeAllModals === 'function') { " +
+                "      var modals = document.querySelectorAll('.modal-overlay').length; " +
+                "      if (modals > 0) { closeAllModals(); return 'navigated'; } " +
+                "    } " +
+                "    if (typeof S !== 'undefined') { " +
+                "      if (S().view === 'match' || S().view === 'pairselect' || S().view === 'summary' || S().view === 'scorecard') { " +
+                "        S().view = 'setup'; render(); " +
+                "        return 'navigated'; " +
+                "      } " +
+                "      if (S().view === 'setup') { " +
+                "        // Check if saved sessions or session viewer is showing (inline render) " +
+                "        var app = document.getElementById('app'); " +
+                "        if (app && app.innerHTML.indexOf('Saved Sessions') !== -1) { " +
+                "          S().view = 'setup'; render(); " +
+                "          return 'navigated'; " +
+                "        } " +
+                "      } " +
+                "    } " +
+                "  } catch(e) { } " +
+                "  return 'exit'; " +
+                "})()",
+                new ValueCallback<String>() {
+                    @Override
+                    public void onReceiveValue(String value) {
+                        if (value == null || "\"exit\"".equals(value)) {
+                            MainActivity.this.finish();
+                        }
+                    }
+                }
+            );
             return true;
         }
         return super.onKeyDown(keyCode, event);
@@ -288,8 +369,8 @@ public class MainActivity extends Activity {
             case 3:
                 new android.app.AlertDialog.Builder(this)
                     .setTitle("the CREASE Scoring")
-                    .setMessage("v1.0.0\n\n" +
-                               "Indoor cricket match scoring app.\n\n" +
+                    .setMessage("v1.1.0\n\n" +
+                               "Indoor cricket match scoring app — all 13 bug fixes.\n\n" +
                                "Where every cricketer gets better.\n" +
                                "© 2026 the CREASE")
                     .setPositiveButton("OK", null)
