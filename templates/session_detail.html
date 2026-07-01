@@ -487,6 +487,67 @@
             </div>
         </div>
 
+        <!-- Bat Swing Path Summary -->
+        {% if session.bat_speed and session.bat_speed.get('swing_avg_kmh') %}
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-arrow-up-right"></i> Bat Swing Path
+                </h6>
+            </div>
+            <div class="card-body p-3">
+                <div class="row g-2">
+                    <!-- Peak Speed -->
+                    <div class="col-4">
+                        <div class="text-center p-2" style="background: #0A0A0A; border-radius: 8px;">
+                            <div style="font-size: 1.2rem; color: #E55000;">⚡</div>
+                            <small style="color: #888888; font-size: 0.6rem; text-transform: uppercase;">Peak</small>
+                            <div style="color: #E55000; font-size: 0.9rem; font-weight: 600;">
+                                {{ "%.0f"|format(session.bat_speed.get('peak_kmh', 0)) }}
+                                <small style="font-size: 0.55rem;">km/h</small>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Swing Avg -->
+                    <div class="col-4">
+                        <div class="text-center p-2" style="background: #0A0A0A; border-radius: 8px;">
+                            <div style="font-size: 1.2rem; color: #FFC107;">📊</div>
+                            <small style="color: #888888; font-size: 0.6rem; text-transform: uppercase;">Swing Avg</small>
+                            <div style="color: #FFC107; font-size: 0.9rem; font-weight: 600;">
+                                {{ "%.0f"|format(session.bat_speed.get('swing_avg_kmh', 0)) }}
+                                <small style="font-size: 0.55rem;">km/h</small>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Backlift -->
+                    <div class="col-4">
+                        <div class="text-center p-2" style="background: #0A0A0A; border-radius: 8px;">
+                            <div style="font-size: 1.2rem; color: #2196F3;">📏</div>
+                            <small style="color: #888888; font-size: 0.6rem; text-transform: uppercase;">Backlift</small>
+                            <div style="color: #2196F3; font-size: 0.9rem; font-weight: 600;">
+                                {% set bl = session.get('backlift_peak', {}) %}
+                                {% if bl.get('height_px', 0) > 0 %}
+                                    {{ "%.0f"|format(bl.height_px) }}
+                                    <small style="font-size: 0.55rem;">px</small>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-2 text-center">
+                    <small style="color: #888888; font-size: 0.6rem;">
+                        <i class="bi bi-info-circle"></i> Bat tip speed from swing analysis.
+                        Backlift = peak bat lift height during backswing.
+                    </small>
+                </div>
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Coaching Tips -->
         {% set meaningful_tips = tips|selectattr("category", "ne", "shot_completed")|list %}
         {% if meaningful_tips %}
@@ -548,6 +609,14 @@
 
         <!-- Shot-by-Shot Breakdown (collapsible) -->
         {% if ss %}
+        {% set aggressive_shots = ['cover_drive', 'on_drive', 'straight_drive', 'square_cut', 'pull', 'slog_sweep', 'upper_cut', 'ramp', 'lap_shot'] %}
+        {% set defensive_shots = ['defensive_block', 'leave', 'glance'] %}
+        {% set ns_counts = namespace(agg=0, defn=0) %}
+        {% for s in ss %}
+        {% if s.shot_type in aggressive_shots %}{% set ns_counts.agg = ns_counts.agg + 1 %}{% endif %}
+        {% if s.shot_type in defensive_shots %}{% set ns_counts.defn = ns_counts.defn + 1 %}{% endif %}
+        {% endfor %}
+        {% set ns_neutral = ss|length - ns_counts.agg - ns_counts.defn %}
         <div class="card border-0 mb-3"
              style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-header d-flex align-items-center"
@@ -558,6 +627,32 @@
                 <span class="ms-auto badge" style="background: #2A2A2A; color: #C2C2C2;">{{ ss|length }} shots</span>
             </div>
             <div class="card-body p-0">
+                <!-- Aggression summary strip -->
+                {% if ns_counts.agg > 0 or ns_counts.defn > 0 %}
+                <div class="px-3 py-2 d-flex align-items-center gap-2 flex-wrap"
+                     style="background: #0A0A0A; border-bottom: 1px solid #1A1A1A;">
+                    <small style="color: #888888; font-size: 0.65rem;">Shot profile:</small>
+                    {% if ns_counts.agg > 0 %}
+                    <span class="badge" style="background: rgba(229,80,0,0.2); color: #E55000; font-size: 0.6rem;">
+                        {{ ns_counts.agg }} aggressive
+                    </span>
+                    {% endif %}
+                    {% if ns_counts.defn > 0 %}
+                    <span class="badge" style="background: rgba(33,150,243,0.2); color: #2196F3; font-size: 0.6rem;">
+                        {{ ns_counts.defn }} defensive
+                    </span>
+                    {% endif %}
+                    {% if ns_neutral > 0 %}
+                    <span class="badge" style="background: rgba(255,255,255,0.1); color: #888888; font-size: 0.6rem;">
+                        {{ ns_neutral }} neutral
+                    </span>
+                    {% endif %}
+                    <span class="ms-auto" style="color: #666666; font-size: 0.55rem;">
+                        <i class="bi bi-info-circle"></i> Aggression profile
+                    </span>
+                </div>
+                {% endif %}
+
                 <div class="list-group list-group-flush" style="background: transparent;">
                     {% for shot in ss[:10] %}
                     <div class="list-group-item px-3 py-2"
@@ -572,10 +667,20 @@
                                 <i class="bi bi-check-circle ms-1" style="color: #4CAF50; font-size: 0.8rem;"></i>
                                 {% endif %}
                             </div>
-                            <div>
+                            <div class="d-flex align-items-center gap-1">
+                                {% if shot.foot_movement and shot.foot_movement != 'unknown' %}
+                                <span class="badge" style="background: {% if shot.foot_movement == 'forward' %}#1B5E20{% else %}#E65100{% endif %}; font-size: 0.5rem;">
+                                    {% if shot.foot_movement == 'forward' %}↗ across{% elif shot.foot_movement == 'back' %}↘ back foot{% else %}—{% endif %}
+                                </span>
+                                {% endif %}
+                                {% if shot.depth_movement and shot.depth_movement != 'unknown' and shot.depth_movement != 'stayed' %}
+                                <span class="badge" style="background: {% if shot.depth_movement == 'down_wicket' %}#E55000{% else %}#9C27B0{% endif %}; font-size: 0.5rem;">
+                                    {% if shot.depth_movement == 'down_wicket' %}⬇ down wicket{% elif shot.depth_movement == 'deep_crease' %}⬆ deep crease{% endif %}
+                                </span>
+                                {% endif %}
                                 {% if shot.phases %}
                                 {% for p in shot.phases[:2] %}
-                                <span class="badge me-1" style="background: #2A2A2A; font-size: 0.6rem;">
+                                <span class="badge me-1" style="background: #2A2A2A; font-size: 0.55rem;">
                                     {{ p|replace('_', ' ')|truncate(8) }}
                                 </span>
                                 {% endfor %}
@@ -583,7 +688,7 @@
                             </div>
                         </div>
                         {% if shot.shot_type and shot.shot_type != 'unknown' %}
-                        <div class="mt-1 d-flex align-items-center">
+                        <div class="mt-1 d-flex align-items-center flex-wrap gap-1">
                             <span style="font-size: 1.1rem; line-height: 1;" class="me-1">
                                 {% set shot_icon_map = {
                                     'cover_drive': '\U0001F3AF',
@@ -607,24 +712,33 @@
                             <strong style="color: #FFFFFF; font-size: 0.85rem; text-transform: capitalize;">
                                 {{ shot.shot_type|replace('_', ' ') }}
                             </strong>
+                            {% if shot.shot_type in aggressive_shots %}
+                            <span class="badge" style="background: rgba(229,80,0,0.2); color: #E55000; font-size: 0.5rem;">
+                                AGGRESSIVE
+                            </span>
+                            {% elif shot.shot_type in defensive_shots %}
+                            <span class="badge" style="background: rgba(33,150,243,0.2); color: #2196F3; font-size: 0.5rem;">
+                                DEFENSIVE
+                            </span>
+                            {% endif %}
                             {% if shot.classification_confidence %}
-                            <span class="ms-2 badge"
-                                  style="background: {% if shot.classification_confidence > 0.7 %}#1B5E20{% elif shot.classification_confidence > 0.5 %}#E65100{% else %}#B71C1C{% endif %}; font-size: 0.55rem;">
+                            <span class="badge"
+                                  style="background: {% if shot.classification_confidence > 0.7 %}#1B5E20{% elif shot.classification_confidence > 0.5 %}#E65100{% else %}#B71C1C{% endif %}; font-size: 0.5rem;">
                                 {{ "%.0f"|format(shot.classification_confidence * 100) }}%
                             </span>
                             {% endif %}
                             {% if shot.bat_face and shot.bat_face != 'unknown' %}
-                            <span class="ms-2" style="color: #888888; font-size: 0.65rem;">
+                            <span style="color: #888888; font-size: 0.6rem;">
                                 {{ shot.bat_face|title }} face
                             </span>
                             {% endif %}
                             {% if shot.ball_line %}
-                            <span class="ms-2" style="color: #888888; font-size: 0.65rem;">
+                            <span style="color: #888888; font-size: 0.6rem;">
                                 {{ shot.ball_line|replace('_', ' ') }}
                             </span>
                             {% endif %}
                             {% if shot.lbw and shot.lbw.get('hitting_stumps_pct', 0) > 0 %}
-                            <span class="ms-2 badge" style="background: {% if shot.lbw.hitting_stumps_pct >= 60 %}#B71C1C{% elif shot.lbw.hitting_stumps_pct >= 30 %}#E65100{% else %}#1B5E20{% endif %}; font-size: 0.5rem;"
+                            <span class="badge" style="background: {% if shot.lbw.hitting_stumps_pct >= 60 %}#B71C1C{% elif shot.lbw.hitting_stumps_pct >= 30 %}#E65100{% else %}#1B5E20{% endif %}; font-size: 0.45rem;"
                                   title="LBW prediction: {{ shot.lbw.verdict }} (cone: {{ '%.0f'|format(shot.lbw.cone.lower * 100) }}-{{ '%.0f'|format(shot.lbw.cone.upper * 100) }}%) &#10;Caveat: {{ shot.lbw.caveat }}">
                                 LBW {{ shot.lbw.hitting_stumps_pct }}%
                             </span>

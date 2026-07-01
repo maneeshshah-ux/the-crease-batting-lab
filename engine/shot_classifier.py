@@ -163,6 +163,7 @@ class ShotClassifier:
             shot["foot_movement"] = classification.get("foot_movement")
             shot["ball_line"] = classification.get("ball_line")
             shot["ball_length"] = classification.get("ball_length")
+            shot["depth_movement"] = classification.get("depth_movement", "unknown")
         return shot_summaries
 
     # ── Single-shot classification ─────────────────────────────────
@@ -240,6 +241,9 @@ class ShotClassifier:
         ]
         bat_speed_max = max(bat_speeds) if bat_speeds else None
 
+        # 7. Depth movement (down the wicket / deep in crease)
+        depth_movement = self._classify_depth_movement(window)
+
         return {
             "foot_movement": foot_movement,
             "swing_path_angle": swing_path_angle,
@@ -248,6 +252,7 @@ class ShotClassifier:
             "ball_length": ball_length,
             "front_knee_min": front_knee_min,
             "bat_speed_max": bat_speed_max,
+            "depth_movement": depth_movement,
         }
 
     def _classify_foot_movement(
@@ -286,6 +291,40 @@ class ShotClassifier:
         if max_lift > 50:
             return "back"
         return "forward"
+
+    def _classify_depth_movement(
+        self, window: List[Dict[str, Any]]
+    ) -> str:
+        """Determine if batter came down the wicket or went deep in crease.
+
+        Uses ``hip_depth_y`` from front-on metrics (normalised y-coordinate
+        of the hip centre).  A higher y-value (lower in frame) means the
+        batter is closer to the camera → down the wicket.  A lower y-value
+        (higher in frame) means farther from camera → deep in crease.
+
+        Returns:
+            ``"down_wicket"``, ``"deep_crease"``, ``"stayed"``, or
+            ``"unknown"``.
+        """
+        hip_ys = [
+            m.get("hip_depth_y") for m in window
+            if m.get("hip_depth_y") is not None
+        ]
+        if len(hip_ys) < 5:
+            return "unknown"
+
+        early = sum(hip_ys[:3]) / 3.0
+        late = sum(hip_ys[-3:]) / 3.0
+        delta = late - early
+
+        # Normalised y-coordinate threshold (~2% of frame height)
+        THRESHOLD = 0.02
+        if abs(delta) < THRESHOLD:
+            return "stayed"
+        elif delta > 0:
+            return "down_wicket"   # lower in frame → closer → came down
+        else:
+            return "deep_crease"   # higher in frame → farther → went back
 
     def _analyze_swing(
         self, window: List[Dict[str, Any]]

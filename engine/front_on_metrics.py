@@ -503,4 +503,40 @@ def compute_front_on_frame_metrics(
         result["front_on_lateral_direction"] = trigger.get("direction")
         result["front_on_is_across"] = trigger.get("is_across")
 
+    # Depth movement proxy (down the wicket / deep in crease)
+    depth = estimate_depth_movement(landmarks)
+    result["hip_depth_y"] = depth.get("hip_y")
+    result["hip_depth_z"] = depth.get("hip_z")
+
     return result
+
+
+# ────────────────────────────────────────────────────────────────────────
+# Depth Movement (down the wicket / deep in crease)
+# ────────────────────────────────────────────────────────────────────────
+
+def estimate_depth_movement(
+    landmarks: Dict[str, Any],
+) -> Dict[str, Any]:
+    """Estimate batter depth from hip landmark y-position.
+
+    In a front-on view the hip y-coordinate (normalised [0,1]) serves as a
+    rough proxy for depth:
+      - Higher y (lower in frame) ≈ closer to camera ≈ down the wicket
+      - Lower y (higher in frame)  ≈ farther from camera ≈ deep in crease
+
+    The z-coordinate from MediaPipe (negative = toward camera) is stored
+    alongside for reference.
+
+    Returns:
+        dict with ``hip_y`` (float or None) and ``hip_z`` (float or None).
+    """
+    lh = landmarks.get("LEFT_HIP")
+    rh = landmarks.get("RIGHT_HIP")
+    if not lh or not rh:
+        return {"hip_y": None, "hip_z": None}
+
+    hip_y = (lh.get("y", 0.5) + rh.get("y", 0.5)) / 2.0
+    hip_z = (lh.get("z", 0.0) + rh.get("z", 0.0)) / 2.0
+
+    return {"hip_y": round(hip_y, 4), "hip_z": round(hip_z, 4)}
