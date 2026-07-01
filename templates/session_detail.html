@@ -286,40 +286,6 @@
             {% endif %}
         </div>
 
-        <!-- Phase Timeline -->
-        {% if session.phases %}
-        <div class="card border-0 mt-3"
-             style="background: #141414; border: 1px solid #2A2A2A !important;">
-            <div class="card-body p-3">
-                <h6 style="color: #E55000; font-size: 0.85rem;">
-                    <i class="bi bi-layers"></i> Shot Phases Timeline
-                </h6>
-                <div class="phase-timeline" id="phase-timeline">
-                    {% for phase in session.phases %}
-                    {% set phase_colors = {
-                        'stance': '#2A2A2A',
-                        'backlift': '#FFC107',
-                        'stride': '#2196F3',
-                        'downswing': '#E55000',
-                        'impact': '#4CAF50',
-                        'follow_through': '#9C27B0',
-                        'recovery': '#607D8B',
-                    } %}
-                    {% set phase_name = phase.phase or phase %}
-                    {% set color = phase_colors.get(phase_name, '#2A2A2A') %}
-                    <div class="text-center">
-                        <div class="phase-segment"
-                             style="background: {{ color }}; width: {{ phase.end_frame - phase.start_frame + 1 }}px; min-width: 20px;"
-                             title="{{ phase_name }}: frames {{ phase.start_frame }}-{{ phase.end_frame }}">
-                        </div>
-                        <div class="phase-label">{{ phase_name|replace('_', ' ')|title }}</div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-        {% endif %}
-
         <!-- Charts -->
         {% if session.charts %}
         <div class="card border-0 mt-3"
@@ -415,6 +381,7 @@
                 </h6>
 
                 {% if s.head_stability_score %}
+                {% set hs_text = "Elite <0.5cm" if s.avg_head_movement and s.avg_head_movement <= 0.5 else "Elite min 0.5cm" %}
                 <div class="skill-label">
                     <span style="color: #C2C2C2;">Head Stability</span>
                     <span style="color: #E55000;">{{ "%.0f"|format(s.head_stability_score) }}/100</span>
@@ -423,6 +390,16 @@
                     <div class="pill-bar-fill" data-target="{{ s.head_stability_score|int }}"
                          style="width: 0%; background: linear-gradient(90deg, #E55000, var(--crease-green));"></div>
                 </div>
+                {% if s.avg_head_movement %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    Head moved {{ "%.1f"|format(s.avg_head_movement) }}cm
+                    {% if s.avg_head_movement > 0.5 %}
+                    <span style="color: #E55000;">— too much (elite: &lt;0.5cm)</span>
+                    {% else %}
+                    <span style="color: #4CAF50;">— excellent (elite: &lt;0.5cm)</span>
+                    {% endif %}
+                </div>
+                {% endif %}
                 {% endif %}
 
                 {% if s.avg_front_knee_angle %}
@@ -436,6 +413,19 @@
                     <div class="pill-bar-fill" data-target="{{ knee_score }}"
                          style="width: 0%; background: linear-gradient(90deg, #E55000, #FFC107, var(--crease-green));"></div>
                 </div>
+                {% if s.avg_front_knee_angle > 145 %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #E55000;">Too straight — ideal range 120-145°</span>
+                </div>
+                {% elif s.avg_front_knee_angle < 120 %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #FFC107;">Over-bent — ideal range 120-145°</span>
+                </div>
+                {% else %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #4CAF50;">Good flexion (ideal 120-145°)</span>
+                </div>
+                {% endif %}
                 {% endif %}
 
                 {% if s.avg_spine_angle %}
@@ -449,6 +439,19 @@
                     <div class="pill-bar-fill" data-target="{{ spine_score }}"
                          style="width: 0%; background: linear-gradient(90deg, #E55000, #FFC107, var(--crease-green));"></div>
                 </div>
+                {% if s.avg_spine_angle > 165 %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #E55000;">Too upright — ideal 155-165° forward lean</span>
+                </div>
+                {% elif s.avg_spine_angle < 155 %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #FFC107;">Overly crouched — ideal 155-165° forward lean</span>
+                </div>
+                {% else %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #4CAF50;">Good posture (ideal 155-165° forward lean)</span>
+                </div>
+                {% endif %}
                 {% endif %}
 
                 {% if s.avg_front_elbow_angle %}
@@ -461,6 +464,19 @@
                     <div class="pill-bar-fill" data-target="{{ elbow_score }}"
                          style="width: 0%; background: linear-gradient(90deg, #E55000, #FFC107, var(--crease-green));"></div>
                 </div>
+                {% if s.avg_front_elbow_angle > 160 %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #4CAF50;">Good extension (ideal 150-165° at contact)</span>
+                </div>
+                {% elif s.avg_front_elbow_angle > 140 %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #FFC107;">Slightly bent — aim for straighter arm at contact</span>
+                </div>
+                {% else %}
+                <div style="color: #888888; font-size: 0.7rem; margin-top: 0.1rem;">
+                    <span style="color: #E55000;">Too bent — work on extending front arm through the line</span>
+                </div>
+                {% endif %}
                 {% endif %}
 
                 {% if not s.head_stability_score and not s.avg_front_knee_angle %}
@@ -471,37 +487,9 @@
             </div>
         </div>
 
-        <!-- Ball & Session Info -->
-        <div class="card border-0 mb-3"
-             style="background: #141414; border: 1px solid #2A2A2A !important;">
-            <div class="card-body p-3">
-                <div class="metric-grid">
-                    <div class="metric-card">
-                        <div class="metric-value">{{ session.num_shots_detected }}</div>
-                        <div class="metric-label">Shots</div>
-                    </div>
-                    <div class="metric-card">
-                        <div class="metric-value">{{ "%.0f"|format(session.duration_sec) }}s</div>
-                        <div class="metric-label">Duration</div>
-                    </div>
-                    {% if session.ball_speed and session.ball_speed.get('speed_kmh') %}
-                    <div class="metric-card">
-                        <div class="metric-value">{{ "%.0f"|format(session.ball_speed.speed_kmh) }}</div>
-                        <div class="metric-label">Ball km/h</div>
-                    </div>
-                    {% endif %}
-                    <div class="metric-card">
-                        <div class="metric-value" style="font-size: 1rem; text-transform: capitalize;">
-                            {{ session.batting_hand }}
-                        </div>
-                        <div class="metric-label">Hand</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-
         <!-- Coaching Tips -->
-        {% if tips %}
+        {% set meaningful_tips = tips|selectattr("category", "ne", "shot_completed")|list %}
+        {% if meaningful_tips %}
         <div class="card border-0 mb-3"
              style="background: #141414; border: 1px solid #2A2A2A !important;">
             <div class="card-header d-flex align-items-center"
@@ -509,18 +497,18 @@
                 <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
                     <i class="bi bi-chat-quote"></i> Coaching Insights
                 </h6>
-                <span class="ms-auto badge" style="background: #E55000;">{{ tips|length }}</span>
+                <span class="ms-auto badge" style="background: #E55000;">{{ meaningful_tips|length }}</span>
             </div>
             <div class="card-body p-3">
-                {% for tip in tips[:5] %}
+                {% for tip in meaningful_tips[:5] %}
                 <div class="d-flex align-items-start mb-3 {% if not loop.last %}" style="border-bottom: 1px solid #1A1A1A; padding-bottom: 0.75rem;{% endif %}">
-                    <div class="me-2 mt-1">
+                    <div class="me-2 mt-1" style="min-width: 14px;">
                         {% if tip.severity == 'high' %}
-                        <span class="badge" style="background: #E55000; width: 8px; height: 8px; padding: 0; border-radius: 50%; display: block;"></span>
+                        <span class="badge" style="background: #E55000; width: 10px; height: 10px; padding: 0; border-radius: 50%; display: inline-block;" title="High priority"></span>
                         {% elif tip.severity == 'medium' %}
-                        <span class="badge" style="background: #FFC107; width: 8px; height: 8px; padding: 0; border-radius: 50%; display: block;"></span>
+                        <span class="badge" style="background: #FFC107; width: 10px; height: 10px; padding: 0; border-radius: 50%; display: inline-block;" title="Needs attention"></span>
                         {% else %}
-                        <span class="badge" style="background: #4CAF50; width: 8px; height: 8px; padding: 0; border-radius: 50%; display: block;"></span>
+                        <span class="badge" style="background: #4CAF50; width: 10px; height: 10px; padding: 0; border-radius: 50%; display: inline-block;" title="Informational"></span>
                         {% endif %}
                     </div>
                     <div class="flex-grow-1">
@@ -533,16 +521,16 @@
                     </div>
                 </div>
                 {% endfor %}
-                {% if tips|length > 5 %}
+                {% if meaningful_tips|length > 5 %}
                 <button class="btn btn-sm btn-outline-crease w-100 mt-1"
                         onclick="this.nextElementSibling.style.display='block';this.style.display='none';">
-                    Show all {{ tips|length }} tips
+                    Show all {{ meaningful_tips|length }} tips
                 </button>
                 <div style="display: none;">
-                    {% for tip in tips[5:] %}
+                    {% for tip in meaningful_tips[5:] %}
                     <div class="d-flex align-items-start mt-3">
-                        <div class="me-2 mt-1">
-                            <span class="badge" style="background: #888888; width: 8px; height: 8px; padding: 0; border-radius: 50%; display: block;"></span>
+                        <div class="me-2 mt-1" style="min-width: 14px;">
+                            <span class="badge" style="background: #888888; width: 10px; height: 10px; padding: 0; border-radius: 50%; display: inline-block;" title="Informational"></span>
                         </div>
                         <div>
                             <strong style="color: #C2C2C2; font-size: 0.85rem;">{{ tip.observation }}</strong>
@@ -552,6 +540,103 @@
                         </div>
                     </div>
                     {% endfor %}
+                </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Shot-by-Shot Breakdown (collapsible) -->
+        {% if ss %}
+        <div class="card border-0 mb-3"
+             style="background: #141414; border: 1px solid #2A2A2A !important;">
+            <div class="card-header d-flex align-items-center"
+                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
+                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
+                    <i class="bi bi-list-check"></i> Shot Breakdown
+                </h6>
+                <span class="ms-auto badge" style="background: #2A2A2A; color: #C2C2C2;">{{ ss|length }} shots</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="list-group list-group-flush" style="background: transparent;">
+                    {% for shot in ss[:10] %}
+                    <div class="list-group-item px-3 py-2"
+                         style="background: transparent; border-color: #1A1A1A; color: #C2C2C2;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <strong style="color: #E55000;">#{{ shot.shot_number }}</strong>
+                                <small style="color: #888888;" class="ms-2">
+                                    {{ "%.1f"|format(shot.duration_sec) }}s
+                                </small>
+                                {% if shot.has_impact %}
+                                <i class="bi bi-check-circle ms-1" style="color: #4CAF50; font-size: 0.8rem;"></i>
+                                {% endif %}
+                            </div>
+                            <div>
+                                {% if shot.phases %}
+                                {% for p in shot.phases[:2] %}
+                                <span class="badge me-1" style="background: #2A2A2A; font-size: 0.6rem;">
+                                    {{ p|replace('_', ' ')|truncate(8) }}
+                                </span>
+                                {% endfor %}
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% if shot.shot_type and shot.shot_type != 'unknown' %}
+                        <div class="mt-1 d-flex align-items-center">
+                            <span style="font-size: 1.1rem; line-height: 1;" class="me-1">
+                                {% set shot_icon_map = {
+                                    'cover_drive': '\U0001F3AF',
+                                    'on_drive': '\U0001F3AF',
+                                    'straight_drive': '\U0001F3AF',
+                                    'square_cut': '\u2702\ufe0f',
+                                    'pull': '\U0001F4AA',
+                                    'defensive_block': '\U0001F6E1\ufe0f',
+                                    'leave': '\U0001F6AB',
+                                    'sweep': '\U0001F9F9',
+                                    'reverse_sweep': '\U0001F504',
+                                    'slog_sweep': '\U0001F4A5',
+                                    'lap_shot': '\U0001F998',
+                                    'ramp': '\U0001F680',
+                                    'upper_cut': '\u2B06\ufe0f',
+                                    'glance': '\U0001F440',
+                                    'flick': '\U0001F590\ufe0f',
+                                } %}
+                                {{ shot_icon_map.get(shot.shot_type, '\u2753') }}
+                            </span>
+                            <strong style="color: #FFFFFF; font-size: 0.85rem; text-transform: capitalize;">
+                                {{ shot.shot_type|replace('_', ' ') }}
+                            </strong>
+                            {% if shot.classification_confidence %}
+                            <span class="ms-2 badge"
+                                  style="background: {% if shot.classification_confidence > 0.7 %}#1B5E20{% elif shot.classification_confidence > 0.5 %}#E65100{% else %}#B71C1C{% endif %}; font-size: 0.55rem;">
+                                {{ "%.0f"|format(shot.classification_confidence * 100) }}%
+                            </span>
+                            {% endif %}
+                            {% if shot.bat_face and shot.bat_face != 'unknown' %}
+                            <span class="ms-2" style="color: #888888; font-size: 0.65rem;">
+                                {{ shot.bat_face|title }} face
+                            </span>
+                            {% endif %}
+                            {% if shot.ball_line %}
+                            <span class="ms-2" style="color: #888888; font-size: 0.65rem;">
+                                {{ shot.ball_line|replace('_', ' ') }}
+                            </span>
+                            {% endif %}
+                            {% if shot.lbw and shot.lbw.get('hitting_stumps_pct', 0) > 0 %}
+                            <span class="ms-2 badge" style="background: {% if shot.lbw.hitting_stumps_pct >= 60 %}#B71C1C{% elif shot.lbw.hitting_stumps_pct >= 30 %}#E65100{% else %}#1B5E20{% endif %}; font-size: 0.5rem;"
+                                  title="LBW prediction: {{ shot.lbw.verdict }} (cone: {{ '%.0f'|format(shot.lbw.cone.lower * 100) }}-{{ '%.0f'|format(shot.lbw.cone.upper * 100) }}%) &#10;Caveat: {{ shot.lbw.caveat }}">
+                                LBW {{ shot.lbw.hitting_stumps_pct }}%
+                            </span>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+                </div>
+                {% if ss|length > 10 %}
+                <div class="text-center py-2">
+                    <small style="color: #888888;">+ {{ ss|length - 10 }} more shots</small>
                 </div>
                 {% endif %}
             </div>
@@ -765,103 +850,6 @@
                         </small>
                     </div>
                 </div>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Shot-by-Shot Breakdown (collapsible) -->
-        {% if ss %}
-        <div class="card border-0 mb-3"
-             style="background: #141414; border: 1px solid #2A2A2A !important;">
-            <div class="card-header d-flex align-items-center"
-                 style="background: transparent; border-bottom: 1px solid #2A2A2A;">
-                <h6 class="mb-0" style="color: #E55000; font-size: 0.85rem;">
-                    <i class="bi bi-list-check"></i> Shot Breakdown
-                </h6>
-                <span class="ms-auto badge" style="background: #2A2A2A; color: #C2C2C2;">{{ ss|length }} shots</span>
-            </div>
-            <div class="card-body p-0">
-                <div class="list-group list-group-flush" style="background: transparent;">
-                    {% for shot in ss[:10] %}
-                    <div class="list-group-item px-3 py-2"
-                         style="background: transparent; border-color: #1A1A1A; color: #C2C2C2;">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <strong style="color: #E55000;">#{{ shot.shot_number }}</strong>
-                                <small style="color: #888888;" class="ms-2">
-                                    {{ "%.1f"|format(shot.duration_sec) }}s
-                                </small>
-                                {% if shot.has_impact %}
-                                <i class="bi bi-check-circle ms-1" style="color: #4CAF50; font-size: 0.8rem;"></i>
-                                {% endif %}
-                            </div>
-                            <div>
-                                {% if shot.phases %}
-                                {% for p in shot.phases[:2] %}
-                                <span class="badge me-1" style="background: #2A2A2A; font-size: 0.6rem;">
-                                    {{ p|replace('_', ' ')|truncate(8) }}
-                                </span>
-                                {% endfor %}
-                                {% endif %}
-                            </div>
-                        </div>
-                        {% if shot.shot_type and shot.shot_type != 'unknown' %}
-                        <div class="mt-1 d-flex align-items-center">
-                            <span style="font-size: 1.1rem; line-height: 1;" class="me-1">
-                                {% set shot_icon_map = {
-                                    'cover_drive': '\U0001F3AF',
-                                    'on_drive': '\U0001F3AF',
-                                    'straight_drive': '\U0001F3AF',
-                                    'square_cut': '\u2702\ufe0f',
-                                    'pull': '\U0001F4AA',
-                                    'defensive_block': '\U0001F6E1\ufe0f',
-                                    'leave': '\U0001F6AB',
-                                    'sweep': '\U0001F9F9',
-                                    'reverse_sweep': '\U0001F504',
-                                    'slog_sweep': '\U0001F4A5',
-                                    'lap_shot': '\U0001F998',
-                                    'ramp': '\U0001F680',
-                                    'upper_cut': '\u2B06\ufe0f',
-                                    'glance': '\U0001F440',
-                                    'flick': '\U0001F590\ufe0f',
-                                } %}
-                                {{ shot_icon_map.get(shot.shot_type, '\u2753') }}
-                            </span>
-                            <strong style="color: #FFFFFF; font-size: 0.85rem; text-transform: capitalize;">
-                                {{ shot.shot_type|replace('_', ' ') }}
-                            </strong>
-                            {% if shot.classification_confidence %}
-                            <span class="ms-2 badge"
-                                  style="background: {% if shot.classification_confidence > 0.7 %}#1B5E20{% elif shot.classification_confidence > 0.5 %}#E65100{% else %}#B71C1C{% endif %}; font-size: 0.55rem;">
-                                {{ "%.0f"|format(shot.classification_confidence * 100) }}%
-                            </span>
-                            {% endif %}
-                            {% if shot.bat_face and shot.bat_face != 'unknown' %}
-                            <span class="ms-2" style="color: #888888; font-size: 0.65rem;">
-                                {{ shot.bat_face|title }} face
-                            </span>
-                            {% endif %}
-                            {% if shot.ball_line %}
-                            <span class="ms-2" style="color: #888888; font-size: 0.65rem;">
-                                {{ shot.ball_line|replace('_', ' ') }}
-                            </span>
-                            {% endif %}
-                            {% if shot.lbw and shot.lbw.get('hitting_stumps_pct', 0) > 0 %}
-                            <span class="ms-2 badge" style="background: {% if shot.lbw.hitting_stumps_pct >= 60 %}#B71C1C{% elif shot.lbw.hitting_stumps_pct >= 30 %}#E65100{% else %}#1B5E20{% endif %}; font-size: 0.5rem;"
-                                  title="LBW prediction: {{ shot.lbw.verdict }} (cone: {{ '%.0f'|format(shot.lbw.cone.lower * 100) }}-{{ '%.0f'|format(shot.lbw.cone.upper * 100) }}%) &#10;Caveat: {{ shot.lbw.caveat }}">
-                                LBW {{ shot.lbw.hitting_stumps_pct }}%
-                            </span>
-                            {% endif %}
-                        </div>
-                        {% endif %}
-                    </div>
-                    {% endfor %}
-                </div>
-                {% if ss|length > 10 %}
-                <div class="text-center py-2">
-                    <small style="color: #888888;">+ {{ ss|length - 10 }} more shots</small>
-                </div>
-                {% endif %}
             </div>
         </div>
         {% endif %}
