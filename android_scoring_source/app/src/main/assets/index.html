@@ -472,13 +472,14 @@ function renderMatch() {
   const hist = [...inn.history].reverse().slice(0, 30).map(h => {
     let txt = '', cls = '';
     const nm = h.b === 1 ? inn.b1Name : inn.b2Name;
-    if (h.type === 'wicket') { txt = nm + ' ' + h.mode + (h.fielder ? ' c ' + h.fielder : ''); cls = 'wkt'; }
+    const bwName = h.bowler || '';
+    if (h.type === 'wicket') { txt = bwName + ' \u2192 ' + nm + ' ' + h.mode + (h.fielder ? ' c ' + h.fielder : ''); cls = 'wkt'; }
     else if (h.type === 'wide') { txt = 'Wide' + (h.runs > 1 ? ' +' + (h.runs-1) : ''); cls = 'wide'; }
     else if (h.type === 'noball') { txt = 'NB ' + h.runs + 'r \u2726FH'; cls = 'nb'; }
-    else if (h.type === 'bye') { txt = h.runs + ' bye' + (h.runs > 1 ? 's' : ''); cls = 'bye'; }
-    else if (h.type === 'legbye') { txt = h.runs + ' leg bye' + (h.runs > 1 ? 's' : ''); cls = 'bye'; }
-    else if (h.type === 'penalty') { txt = 'Pen ' + (h.runs > 0 ? '+' : '') + h.runs; cls = 'nb'; }
-    else { txt = nm + ' ' + h.runs + (h.bonus ? ' \u2B50+1' : ''); if (h.bonus) cls = 'bonus'; }
+    else if (h.type === 'bye') { txt = bwName + ' \u2192 ' + nm + ' ' + h.runs + ' bye' + (h.runs > 1 ? 's' : ''); cls = 'bye'; }
+    else if (h.type === 'legbye') { txt = bwName + ' \u2192 ' + nm + ' ' + h.runs + ' leg bye' + (h.runs > 1 ? 's' : ''); cls = 'bye'; }
+    else if (h.type === 'penalty') { txt = bwName + ' \u2192 Pen ' + (h.runs > 0 ? '+' : '') + h.runs; cls = 'nb'; }
+    else { txt = bwName + ' \u2192 ' + nm + ' ' + h.runs + (h.bonus ? ' \u2B50+1' : ''); if (h.bonus) cls = 'bonus'; }
     return '<div class="hist-item"><span class="ball">' + h.over + '.' + h.ballNum + '</span><span class="evt ' + cls + '">' + txt + '</span><span class="total">' + h.runningTotal + '</span></div>';
   }).join('');
 
@@ -566,6 +567,7 @@ function inningsCompleteHtml(inn) {
     if (!bd[h.bowler]) bd[h.bowler] = { balls:0, runs:0, wkts:0, wides:0, noballs:0, dots:0 };
     if (h.type === 'wide') { bd[h.bowler].wides++; return; }
     if (h.type === 'noball') { bd[h.bowler].noballs++; return; }
+    if (h.type === 'penalty') { return; }
     bd[h.bowler].balls++;
     if (h.type === 'wicket' && h.mode !== 'Run Out') bd[h.bowler].wkts++;
     var conceded = (h.type === 'bye' || h.type === 'legbye') ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -621,7 +623,7 @@ function renderScorecard() {
   for (const h of inn.history) {
     if (!h.bowler) continue;
     if (!bd[h.bowler]) bd[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
-    if (h.type !== 'wide' && h.type !== 'noball') {
+    if (h.type !== 'wide' && h.type !== 'noball' && h.type !== 'penalty') {
       bd[h.bowler].balls++;
       if (h.runs === 0 && (h.type === 'run' || h.type === 'wicket')) bd[h.bowler].dots++;
     }
@@ -679,9 +681,7 @@ function scoreRuns(runs) {
     return;
   }
   if (inn.bonusActive) {
-    pushUndo();
-    applyRuns(runs, true, inn.striker);
-    tryRotateStrike(); checkOver(); checkLimits(); saveOnAction(); render();
+    showBonusPick(runs);
     return;
   }
   pushUndo();
@@ -697,6 +697,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
 
   const st = striker();
   if (!st) return;
+  const faced = inn.striker;  // who is facing this ball (before potential rotation)
   if (!hadBonus || !bonusBatter) {
     // Normal path — no bonus
     st.runs += total; st.grossRuns += total; st.bf++; if (st.legalBf < 18) st.legalBf++;
@@ -710,7 +711,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
     protectRunner();
     inn.history.push({
       type: 'run', over: inn.over, ballNum: inn.legalBalls,
-      b: inn.striker === 1 ? 2 : 1, runs: total, bonus: false,
+      b: faced, runs: total, bonus: false,
       freeHit: inn.freeHit, bowler: inn.currentBowler, runningTotal: inn.total
     });
   } else {
@@ -731,7 +732,7 @@ function applyRuns(runs, hadBonus, bonusBatter) {
     // History: show combined runs (base+bonus) and mark with bonus flag
     inn.history.push({
       type: 'run', over: inn.over, ballNum: inn.legalBalls,
-      b: inn.striker === 1 ? 2 : 1, runs: total, bonus: true,
+      b: faced, runs: total, bonus: true,
       freeHit: inn.freeHit, bowler: inn.currentBowler, runningTotal: inn.total
     });
   }
@@ -1261,6 +1262,7 @@ function renderSummary() {
         if (!bowlerStats[h.bowler]) bowlerStats[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
         if (h.type === 'wide') { bowlerStats[h.bowler].wides++; continue; }
         if (h.type === 'noball') { bowlerStats[h.bowler].noballs++; continue; }
+        if (h.type === 'penalty') { continue; }
         bowlerStats[h.bowler].balls++;
         if (h.type === 'wicket' && h.mode !== 'Run Out') bowlerStats[h.bowler].wkts++;
         const conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -1435,6 +1437,7 @@ function renderSummary() {
         if (!sessBowl[h.bowler]) sessBowl[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
         if (h.type === 'wide') { sessBowl[h.bowler].wides++; continue; }
         if (h.type === 'noball') { sessBowl[h.bowler].noballs++; continue; }
+        if (h.type === 'penalty') { continue; }
         sessBowl[h.bowler].balls++;
         if (h.type === 'wicket' && h.mode !== 'Run Out') sessBowl[h.bowler].wkts++;
         const conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -1801,6 +1804,7 @@ function renderSessionView(session, date, idx) {
         if (!bowlerStats[h.bowler]) bowlerStats[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
         if (h.type === 'wide') { bowlerStats[h.bowler].wides++; continue; }
         if (h.type === 'noball') { bowlerStats[h.bowler].noballs++; continue; }
+        if (h.type === 'penalty') { continue; }
         bowlerStats[h.bowler].balls++;
         if (h.type === 'wicket' && h.mode !== 'Run Out') bowlerStats[h.bowler].wkts++;
         const conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -1965,6 +1969,7 @@ function renderSessionView(session, date, idx) {
         if (!sessBowl[h.bowler]) sessBowl[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
         if (h.type === 'wide') { sessBowl[h.bowler].wides++; continue; }
         if (h.type === 'noball') { sessBowl[h.bowler].noballs++; continue; }
+        if (h.type === 'penalty') { continue; }
         sessBowl[h.bowler].balls++;
         if (h.type === 'wicket' && h.mode !== 'Run Out') sessBowl[h.bowler].wkts++;
         const conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -2113,6 +2118,7 @@ function generateSessionHTML(date, idx, session) {
       if (!bowlStats[h.bowler]) bowlStats[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0, econ: 0 };
       if (h.type === 'wide') { bowlStats[h.bowler].wides++; return; }
       if (h.type === 'noball') { bowlStats[h.bowler].noballs++; return; }
+      if (h.type === 'penalty') { return; }
       bowlStats[h.bowler].balls++;
       if (h.type === 'wicket' && h.mode !== 'Run Out') bowlStats[h.bowler].wkts++;
       var conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -2233,6 +2239,7 @@ function generateSessionHTML(date, idx, session) {
       if (!bowlStats[h.bowler]) bowlStats[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
       if (h.type === 'wide') { bowlStats[h.bowler].wides++; return; }
       if (h.type === 'noball') { bowlStats[h.bowler].noballs++; return; }
+      if (h.type === 'penalty') { return; }
       bowlStats[h.bowler].balls++;
       if (h.type === 'wicket' && h.mode !== 'Run Out') bowlStats[h.bowler].wkts++;
       var conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -2421,6 +2428,7 @@ function exportSessionCSV(date, idx) {
         if (!bowlStats[h.bowler]) bowlStats[h.bowler] = { balls:0, runs:0, wkts:0, wides:0, noballs:0, dots:0 };
         if (h.type === 'wide') { bowlStats[h.bowler].wides++; return; }
         if (h.type === 'noball') { bowlStats[h.bowler].noballs++; return; }
+        if (h.type === 'penalty') { return; }
         bowlStats[h.bowler].balls++;
         if (h.type === 'wicket' && h.mode !== 'Run Out') bowlStats[h.bowler].wkts++;
         var conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -2478,6 +2486,7 @@ function exportSessionCSV(date, idx) {
         if (!bowlStats2[h.bowler]) bowlStats2[h.bowler] = { balls:0, runs:0, wkts:0, wides:0, noballs:0, dots:0 };
         if (h.type === 'wide') { bowlStats2[h.bowler].wides++; return; }
         if (h.type === 'noball') { bowlStats2[h.bowler].noballs++; return; }
+        if (h.type === 'penalty') { return; }
         bowlStats2[h.bowler].balls++;
         if (h.type === 'wicket' && h.mode !== 'Run Out') bowlStats2[h.bowler].wkts++;
         var conceded = h.type === 'bye' || h.type === 'legbye' ? 0 : (h.runs > 0 ? h.runs : 0);
@@ -2607,6 +2616,7 @@ function exportCurrentCSV() {
         if (!bowlStats[h.bowler]) bowlStats[h.bowler] = { balls:0, runs:0, wkts:0, wides:0, noballs:0, dots:0 };
         if (h.type === 'wide') { bowlStats[h.bowler].wides++; return; }
         if (h.type === 'noball') { bowlStats[h.bowler].noballs++; return; }
+        if (h.type === 'penalty') { return; }
         bowlStats[h.bowler].balls++;
         if (h.type === 'wicket' && h.mode !== 'Run Out') bowlStats[h.bowler].wkts++;
         var conceded = (h.type === 'bye' || h.type === 'legbye') ? 0 : (h.runs > 0 ? h.runs : 0);
