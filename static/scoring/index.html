@@ -12,7 +12,7 @@
 <title>The CREASE — Match Scoring</title>
 <style>
 :root {
-  --orange: #E64D0F; --orange-h: #e55a2b; --orange-glow: #ff8c5a;
+  --orange: #E55000; --orange-h: #cc4700; --orange-glow: #ff8c5a;
   --bg: #0d1117; --card: #161b24; --card2: #1c2333; --border: #2d3548;
   --text: #e6e8ed; --dim: #8b8fa3; --green: #238636; --red: #da3633;
   --blue: #1f6feb; --purple: #8957e5; --amber: #d29922; --teal: #1ea885;
@@ -80,7 +80,6 @@ body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sa
 .controls .sec-label { font-size: 10px; color: var(--dim); margin-bottom: 5px; display: flex; align-items: center; gap: 6px; text-transform: uppercase; letter-spacing: 1px; }
 .controls .sec-label .badge { font-size: 8px; padding: 2px 7px; border-radius: 10px; font-weight: 700; letter-spacing: 0; }
 .badge-fh { background: #76ff03; color: #000; }
-.badge-bonus { background: var(--orange); color: #fff; }
 .run-btns { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px; }
 .run-btns .btn { padding: 12px 0; font-size: 18px; font-weight: 800; border-radius: 10px; }
 .run-btns .r0 { background: #2d3548; color: #666; }
@@ -218,7 +217,7 @@ function makeInnings(pairIdx) {
     runner: b1IsRunner ? 1 : (b2IsRunner ? 2 : 0),
     extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 },
     over: 0, legalBalls: 0, totalBalls: 0,
-    freeHit: false, bonusActive: false,
+    freeHit: false,
     currentBowler: S().allPlayers[0] || '',
     prevBowler: '',
     complete: false, maxOvers: 6,
@@ -274,7 +273,7 @@ function render() {
 }
 
 function logoHTML(small) {
-  return '<div class="logo"><img src="crease_logo.png" alt="The CREASE"' + (small ? ' style="height:34px"' : '') + '></div>';
+  return '<div class="logo"><img src="SVG_BarMark_Black_on_Orange.svg" alt="The CREASE" style="height:' + (small ? 34 : 48) + 'px"></div>';
 }
 
 function renderSetup() {
@@ -511,7 +510,7 @@ function renderMatch() {
         + '<button class="btn btn-orange btn-block" onclick="nextPair()" style="margin-top:10px;margin-bottom:10px">' + (S().currentPairIdx + 1 < S().pairs.length ? 'Next Pair \u2192' : 'View Match Summary') + '</button>'
       : '<div class="over-tracker">' + dots.join('') + '</div>'
       + '<div class="controls">'
-      + '<div class="sec-label">Runs' + (inn.freeHit ? '<span class="badge badge-fh">\u2726 FREE HIT</span>' : '') + (inn.bonusActive ? '<span class="badge badge-bonus">+1 BONUS</span>' : '') + '</div>'
+      + '<div class="sec-label">Runs' + (inn.freeHit ? '<span class="badge badge-fh">\u2726 FREE HIT</span>' : '') + '</div>'
       + '<div class="run-btns">'
       + [0,1,2,3,4,5,6].map(n => '<button class="btn r' + n + (strikerCanBat ? '' : ' retired-btn') + '" onclick="scoreRuns(' + n + ')"' + (strikerCanBat ? '' : ' disabled') + '>' + n + '</button>').join('')
       + '</div>'
@@ -523,7 +522,7 @@ function renderMatch() {
       + '<button class="btn btn-dark" onclick="legByes()">Leg Bye</button>'
       + '<button class="btn btn-dark" onclick="penalty()">Penalty</button></div>'
       + '<div class="action-btns">'
-      + '<button class="btn ' + (inn.bonusActive ? 'btn-orange' : 'btn-dark') + '" onclick="toggleBonus()">+1 Bonus</button>'
+      + '<button class="btn btn-dark" onclick="addBonus()">+1 Bonus</button>'
       + '<button class="btn btn-red" onclick="wicket()">WICKET</button>'
       + '<button class="btn btn-dark" onclick="undo()">\u21a9 Undo</button>'
       + '<button class="btn btn-dark" onclick="switchStrike()">\u2194 Strike</button>'
@@ -680,10 +679,6 @@ function scoreRuns(runs) {
     saveOnAction(); render();
     return;
   }
-  if (inn.bonusActive) {
-    showBonusPick(runs);
-    return;
-  }
   pushUndo();
   applyRuns(runs, false, null);
   tryRotateStrike(); checkOver(); checkLimits(); saveOnAction(); render();
@@ -737,42 +732,37 @@ function applyRuns(runs, hadBonus, bonusBatter) {
     });
   }
 
-  inn.bonusActive = false;
   inn.freeHit = false;
 }
 
-function showBonusPick(runs) {
-  const inn = S().innings;
-  if (!inn) return;
-  closeAllModals();
-  const m = document.createElement('div');
-  m.className = 'modal-overlay'; m.id = 'bns';
-  m.innerHTML = '<div class="modal" style="text-align:center">'
-    + '<h3>+1 Bonus Run</h3><p style="font-size:13px;color:var(--dim);margin-bottom:14px">Who gets the +1 bonus?</p>'
-    + '<div class="pick-grid">'
-    + '<button class="btn btn-green" onclick="pickBonus(1)" style="font-size:13px;padding:16px">' + inn.b1Name + '</button>'
-    + '<button class="btn btn-orange" onclick="pickBonus(2)" style="font-size:13px;padding:16px">' + inn.b2Name + '</button>'
-    + '</div>'
-    + '<div class="modal-actions" style="margin-top:10px"><button class="btn btn-dark" onclick="cancelBonus()">Cancel</button></div></div>';
-  document.body.appendChild(m);
-  window._bonusData = { runs: runs };
-}
-
-function pickBonus(batterNum) {
-  closeAllModals();
+/** Add +1 bonus run to the batter who scored the last run */
+function addBonus() {
   const inn = S().innings;
   if (!inn || inn.complete) return;
-  const d = window._bonusData || { runs: 0 };
-  window._bonusData = null;
+  const hist = inn.history;
+  let lastIdx = -1;
+  for (let i = hist.length - 1; i >= 0; i--) {
+    if (hist[i].type === 'run' && hist[i].runs > 0) {
+      lastIdx = i;
+      break;
+    }
+  }
+  if (lastIdx === -1) {
+    alert('No previous scoring shot to add bonus to.');
+    return;
+  }
   pushUndo();
-  applyRuns(d.runs, true, batterNum);
-  tryRotateStrike(); checkOver(); checkLimits(); render();
-}
-
-function cancelBonus() {
-  closeAllModals();
-  S().innings.bonusActive = false;
-  render();
+  const h = hist[lastIdx];
+  const batter = h.b === 1 ? inn.b1 : inn.b2;
+  batter.runs += 1;
+  batter.grossRuns += 1;
+  batter.bonusRuns = (batter.bonusRuns || 0) + 1;
+  inn.total += 1;
+  h.bonus = true;
+  for (let j = lastIdx; j < hist.length; j++) {
+    hist[j].runningTotal += 1;
+  }
+  saveOnAction(); render();
 }
 
 function showPickModal(title, values) {
@@ -1194,13 +1184,6 @@ function confirmBowler() {
   if (sel && sel.value) inn.currentBowler = sel.value;
   closeAllModals();
   render();
-}
-
-function toggleBonus() {
-  const inn = S().innings;
-  if (!inn || inn.complete) return;
-  inn.bonusActive = !inn.bonusActive;
-  saveOnAction(); render();
 }
 
 function endInnings() { if (confirm('End this innings?')) { S().innings.complete = true; closeAllModals(); saveOnAction(); render(); } }
@@ -2770,7 +2753,7 @@ document.addEventListener('keydown', function(e) {
   else if (e.key === 'l') { e.preventDefault(); legByes(); }
   else if (e.key === 'x') { e.preventDefault(); wicket(); }
   else if (e.key === 'u' || e.key === 'z') { e.preventDefault(); undo(); }
-  else if (e.key === 'f') { e.preventDefault(); toggleBonus(); }
+  else if (e.key === 'f') { e.preventDefault(); addBonus(); }
 });
 
 if ('serviceWorker' in navigator) {

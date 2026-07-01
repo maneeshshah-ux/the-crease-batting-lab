@@ -94,7 +94,7 @@ function makeInnings(pairIdx) {
     runner: b1IsRunner ? 1 : (b2IsRunner ? 2 : 0),
     extras: { wides: 0, noBalls: 0, byes: 0, legByes: 0 },
     over: 0, legalBalls: 0, totalBalls: 0,
-    freeHit: false, bonusActive: false,
+    freeHit: false,
     currentBowler: S().allPlayers[0] || '',
     prevBowler: '',
     complete: false, maxOvers: 6,
@@ -124,7 +124,8 @@ function addRun(runs) {
   inn.legalBalls++;
   inn.history.push({
     type: 'run', runs, b: inn.striker, bowler: inn.currentBowler,
-    freeHit: inn.freeHit, over: inn.over, legalBall: inn.legalBalls
+    freeHit: inn.freeHit, over: inn.over, legalBall: inn.legalBalls,
+    runningTotal: inn.total
   });
   if (runs % 2 === 1) inn.striker = inn.striker === 1 ? 2 : 1;
   inn.freeHit = false;
@@ -162,7 +163,7 @@ function addWicket(mode, fielder) {
     type: 'wicket', runs: wktRuns, mode, b: inn.striker,
     bowler: inn.currentBowler, fielder: fielder || '',
     over: inn.over, legalBall: inn.legalBalls + 1,
-    freeHit: inn.freeHit
+    freeHit: inn.freeHit, runningTotal: inn.total
   });
   inn.totalBalls++;
   inn.legalBalls++;
@@ -179,7 +180,7 @@ function addExtra(type, runs) {
   inn.history.push({
     type, runs, b: inn.striker, bowler: inn.currentBowler,
     over: inn.over, legalBall: inn.legalBalls + 1,
-    freeHit: inn.freeHit
+    freeHit: inn.freeHit, runningTotal: inn.total
   });
   if (type === 'wide' || type === 'noball') {
     inn.totalBalls++;
@@ -220,7 +221,7 @@ function addPenalty(runs) {
   inn.history.push({
     type: 'penalty', runs, b: inn.striker, bowler: inn.currentBowler,
     over: inn.over, legalBall: inn.legalBalls + 1,
-    freeHit: inn.freeHit
+    freeHit: inn.freeHit, runningTotal: inn.total
   });
   checkInningsEnd();
   return true;
@@ -233,25 +234,29 @@ function switchStrike() {
   return true;
 }
 
-function toggleBonus() {
+/** Add +1 bonus run to the batter who scored the last run */
+function addBonus() {
   const inn = S().innings;
   if (!inn || inn.complete) return;
-  inn.bonusActive = !inn.bonusActive;
-}
-
-function applyBonus() {
-  const inn = S().innings;
-  if (!inn || !inn.bonusActive) return;
-  const b = getBat(inn, inn.striker);
-  b.runs = (b.runs || 0) + 1;
-  b.bonusRuns = (b.bonusRuns || 0) + 1;
-  b.grossRuns = (b.grossRuns || 0) + 1;
+  const hist = inn.history;
+  let lastIdx = -1;
+  for (let i = hist.length - 1; i >= 0; i--) {
+    if (hist[i].type === 'run' && hist[i].runs > 0) {
+      lastIdx = i;
+      break;
+    }
+  }
+  if (lastIdx === -1) return;
+  const h = hist[lastIdx];
+  const batter = h.b === 1 ? inn.b1 : inn.b2;
+  batter.runs += 1;
+  batter.grossRuns += 1;
+  batter.bonusRuns = (batter.bonusRuns || 0) + 1;
   inn.total += 1;
-  inn.bonusActive = false;
-  inn.history.push({
-    type: 'bonus', runs: 1, b: inn.striker, bowler: inn.currentBowler,
-    over: inn.over, legalBall: inn.legalBalls, freeHit: inn.freeHit
-  });
+  h.bonus = true;
+  for (let j = lastIdx; j < hist.length; j++) {
+    hist[j].runningTotal += 1;
+  }
 }
 
 function endOver() {
@@ -560,28 +565,38 @@ function testSwitchStrike() {
 }
 
 function testBonusRun() {
-  const inn = startInnings(1); // Prasad + Ravi
+  const inn = startInnings(2); // Vijay + Arjun
   
-  // Toggle bonus on
-  toggleBonus(); scenariosRun++;
-  assert(inn.bonusActive === true, 'Bonus active');
+  // Score some runs first
+  addRun(1); scenariosRun++; // Vijay scores 1
+  assert(inn.total === 1, 'Team total = 1 after single');
+  assert(inn.b1.runs === 1, 'b1 (Vijay) scored 1');
   
-  // Apply bonus
-  applyBonus(); scenariosRun++;
-  assert(inn.total === 1, 'Bonus run added to total');
-  assert(inn.b1.bonusRuns === 1, 'Bonus run counted for batter');
-  assert(inn.b1.runs === 1, 'Bonus run added to batter runs');
-  assert(inn.bonusActive === false, 'Bonus deactivated after use');
+  // Add bonus to the last scoring batter (Vijay)
+  addBonus(); scenariosRun++;
+  assert(inn.total === 2, 'Team total = 2 after bonus');
+  assert(inn.b1.runs === 2, 'b1 runs = 2 after bonus');
+  assert(inn.b1.bonusRuns === 1, 'b1 bonusRuns = 1');
+  assert(inn.b1.grossRuns === 2, 'b1 grossRuns = 2');
   
-  // Verify history recorded
-  const lastHist = inn.history[inn.history.length - 1];
-  assert(lastHist.type === 'bonus', 'Bonus recorded in history');
+  // Check bonus is recorded on the last run entry
+  const lastHist = inn.history[inn.history.length - 1]; // the bonus modifies hist[0]
+  assert(inn.history[0].bonus === true, 'Bonus flagged on scoring entry');
   
-  // Toggle on again and verify second bonus
-  toggleBonus();
-  applyBonus(); scenariosRun++;
-  assert(inn.total === 2, 'Second bonus run added');
-  assert(inn.b1.bonusRuns === 2, '2 bonus runs total');
+  // Score more runs with the other batter
+  addRun(3); scenariosRun++; // Arjun scores 3 (odd runs, strike rotates back)
+  assert(inn.total === 5, 'Team total = 5');
+  assert(inn.b1.runs === 2, 'b1 still 2');
+  
+  // Add bonus to the last scoring batter (should be b2/Arjun since he just scored)
+  addBonus(); scenariosRun++;
+  assert(inn.total === 6, 'Team total = 6 after second bonus');
+  assert(inn.b2.bonusRuns === 1, 'b2 bonusRuns = 1');
+  assert(inn.b2.runs === 4, 'b2 runs = 3+1 = 4');
+  
+  // Verify running totals are updated in all subsequent history entries
+  assert(inn.history[1].runningTotal === 3, 'runningTotal updated for hist[1]'); // was 2 → now 3
+  assert(inn.history[2].runningTotal === 6, 'runningTotal updated for hist[2]'); // was 5 → now 6
   
   completeInnings();
 }
