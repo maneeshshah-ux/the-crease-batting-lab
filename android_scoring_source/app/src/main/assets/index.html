@@ -1081,20 +1081,28 @@ function confirmWkt() {
     }
   }
   let ob = inn.striker;
-  let runsBefore = 0;
   if (d.mode === 'Run Out') {
     const rb = document.getElementById('rb');
     if (rb) ob = parseInt(rb.value);
-    runsBefore = parseInt(prompt('Runs completed before run out?', '0')) || 0;
-    if (runsBefore > 0) {
-      const bat = ob === 1 ? inn.b1 : inn.b2;
-      bat.runs += runsBefore;
-      bat.grossRuns += runsBefore;
-      inn.total += runsBefore;
-    }
+    // Show picker for runs before run out instead of prompt
+    window._pickFn = function(runsBefore) {
+      const inn2 = S().innings;
+      if (!inn2 || inn2.complete) { closeWktModal(); return; }
+      runsBefore = runsBefore || 0;
+      if (runsBefore > 0) {
+        const bat = ob === 1 ? inn2.b1 : inn2.b2;
+        bat.runs += runsBefore;
+        bat.grossRuns += runsBefore;
+        inn2.total += runsBefore;
+      }
+      closeWktModal();
+      processWkt(d.mode, f, ob, runsBefore);
+    };
+    showPickModal('Runs before run out?', [0, 1, 2, 3]);
+    return; // callback continues after pick
   }
   closeWktModal();
-  processWkt(d.mode, f, ob, runsBefore);
+  processWkt(d.mode, f, ob, 0);
 }
 
 function tryRotateStrike() {
