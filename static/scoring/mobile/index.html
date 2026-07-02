@@ -530,24 +530,18 @@ function renderMatch() {
       + '</div>';
   };
 
-  const dots = [];
-  for (let i = 1; i <= 6; i++) {
-    const ev = inn.history.filter(h => h.over === inn.over).find(h => h.ballNum === i);
-    if (ev) {
-      let cls = 'runs', lbl = ev.runs;
-      if (ev.type === 'wicket') { cls = 'wicket'; lbl = 'W'; }
-      else if (ev.type === 'wide') { cls = 'wide'; lbl = 'Wd' + (ev.runs > 1 ? ev.runs : ''); }
-      else if (ev.type === 'noball') { cls = 'noball'; lbl = 'NB' + (ev.runs > 1 ? ev.runs : ''); }
-      else if (ev.type === 'bye') { cls = 'byes'; lbl = ev.runs + 'b'; }
-      else if (ev.type === 'legbye') { cls = 'legbyes'; lbl = ev.runs + 'lb'; }
-      else if (ev.type === 'penalty') { cls = 'noball'; lbl = ev.runs > 0 ? '+' + ev.runs : String(ev.runs); }
-      if (ev.bonus) { cls = 'bonus'; lbl = '\u2B50+' + ev.runs; }  // golden star for bonus
-      dots.push('<div class="ball-dot ' + cls + '">' + lbl + '</div>');
-    } else if (i <= inn.legalBalls) {
-      dots.push('<div class="ball-dot empty" style="opacity:0.4">?</div>');
-    } else {
-      dots.push('<div class="ball-dot empty">-</div>');
-    }
+  // Show ALL deliveries in the current over chronologically (extras extend the display)
+  const dots = inn.history.filter(h => h.over === inn.over).map(ev => {
+    let cls = 'runs', lbl = ev.runs;
+    if (ev.type === 'wicket') { cls = 'wicket'; lbl = 'W'; }
+    else if (ev.type === 'wide') { cls = 'wide'; lbl = 'Wd' + (ev.runs > 1 ? ev.runs : ''); }
+    else if (ev.type === 'noball') { cls = 'noball'; lbl = 'NB' + (ev.runs > 1 ? ev.runs : ''); }
+    else if (ev.type === 'bye') { cls = 'byes'; lbl = ev.runs + 'b'; }
+    else if (ev.type === 'legbye') { cls = 'legbyes'; lbl = ev.runs + 'lb'; }
+    else if (ev.type === 'penalty') { cls = 'noball'; lbl = ev.runs > 0 ? '+' + ev.runs : String(ev.runs); }
+    if (ev.bonus) { cls = 'bonus'; lbl = '\u2B50+' + ev.runs; }
+    return '<div class="ball-dot ' + cls + '">' + lbl + '</div>';
+  });
   }
 
   const ext = inn.extras;
@@ -886,11 +880,13 @@ function wideBall() {
     const inn2 = S().innings;
     if (!inn2 || inn2.complete) return;
     pushUndo();
-    const total = 1 + extra;
+    const batRuns = extra;  // actual runs completed (before modified rules adjustment)
+    const scoredRuns = S().modifiedRules && extra === 3 ? 4 : extra;
+    const total = 1 + scoredRuns;
     inn2.total += total;
     inn2.extras.wides += total;
     inn2.totalBalls++;
-    if (extra % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+    if (batRuns % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
     inn2.history.push({
       type: 'wide', over: inn2.over, ballNum: inn2.legalBalls + 1,
       b: inn2.striker, runs: total, freeHit: false,
@@ -944,14 +940,15 @@ function byes() {
     const st = striker();
     if (!st) return;
     st.bf++; if (st.legalBf < 18) st.legalBf++; st.dotBalls++;
-    inn2.total += runs;
-    inn2.extras.byes += runs;
+    const scoredByes = S().modifiedRules && runs === 3 ? 4 : runs;
+    inn2.total += scoredByes;
+    inn2.extras.byes += scoredByes;
     inn2.legalBalls++;
     inn2.totalBalls++;
     if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
     inn2.history.push({
       type: 'bye', over: inn2.over, ballNum: inn2.legalBalls,
-      b: inn2.striker === 1 ? 2 : 1, runs: runs, freeHit: false,
+      b: inn2.striker === 1 ? 2 : 1, runs: scoredByes, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
     inn2.freeHit = false; tryRotateStrike(); checkOver(); checkLimits(); saveOnAction(); render();
@@ -970,14 +967,15 @@ function legByes() {
     const st = striker();
     if (!st) return;
     st.bf++; if (st.legalBf < 18) st.legalBf++; st.dotBalls++;
-    inn2.total += runs;
-    inn2.extras.legByes += runs;
+    const scoredLegByes = S().modifiedRules && runs === 3 ? 4 : runs;
+    inn2.total += scoredLegByes;
+    inn2.extras.legByes += scoredLegByes;
     inn2.legalBalls++;
     inn2.totalBalls++;
     if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
     inn2.history.push({
       type: 'legbye', over: inn2.over, ballNum: inn2.legalBalls,
-      b: inn2.striker === 1 ? 2 : 1, runs: runs, freeHit: false,
+      b: inn2.striker === 1 ? 2 : 1, runs: scoredLegByes, freeHit: false,
       bowler: inn2.currentBowler, runningTotal: inn2.total
     });
     inn2.freeHit = false; tryRotateStrike(); checkOver(); checkLimits(); saveOnAction(); render();
@@ -1084,12 +1082,20 @@ function confirmWkt() {
     }
   }
   let ob = inn.striker;
+  let runsBefore = 0;
   if (d.mode === 'Run Out') {
     const rb = document.getElementById('rb');
     if (rb) ob = parseInt(rb.value);
+    runsBefore = parseInt(prompt('Runs completed before run out?', '0')) || 0;
+    if (runsBefore > 0) {
+      const bat = ob === 1 ? inn.b1 : inn.b2;
+      bat.runs += runsBefore;
+      bat.grossRuns += runsBefore;
+      inn.total += runsBefore;
+    }
   }
   closeWktModal();
-  processWkt(d.mode, f, ob);
+  processWkt(d.mode, f, ob, runsBefore);
 }
 
 function tryRotateStrike() {
@@ -1129,7 +1135,8 @@ function protectRunner() {
   }
 }
 
-function processWkt(mode, fielder, outB) {
+function processWkt(mode, fielder, outB, runsBefore) {
+  runsBefore = runsBefore || 0;
   const inn = S().innings;
   const bat = outB === 1 ? inn.b1 : inn.b2;
 
@@ -1144,9 +1151,10 @@ function processWkt(mode, fielder, outB) {
     inn.legalBalls++;
     inn.totalBalls++;
     if (inn.legalBalls % 6 === 0) inn.ball6 = true;
+    const wktRuns = mode === 'Run Out' ? runsBefore : -penalty;
     inn.history.push({
       type: 'wicket', over: inn.over, ballNum: inn.legalBalls,
-      b: outB, runs: -penalty, mode: mode, fielder: fielder,
+      b: outB, runs: wktRuns, mode: mode, fielder: fielder,
       bowler: inn.currentBowler, freeHit: false, runningTotal: inn.total
     });
     inn.freeHit = false;
@@ -1171,9 +1179,10 @@ function processWkt(mode, fielder, outB) {
     } else {
       inn.striker = inn.striker === 1 ? 2 : 1;
     }
+    const wktRuns2 = mode === 'Run Out' ? runsBefore : 0;
     inn.history.push({
       type: 'wicket', over: inn.over, ballNum: inn.legalBalls,
-      b: outB, runs: 0, mode: mode, fielder: fielder,
+      b: outB, runs: wktRuns2, mode: mode, fielder: fielder,
       bowler: inn.currentBowler, freeHit: false, runningTotal: inn.total
     });
     inn.freeHit = false;
