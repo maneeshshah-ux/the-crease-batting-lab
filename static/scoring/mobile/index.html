@@ -3083,10 +3083,27 @@ function standardFinishWicket(mode, strikerArg, fielderName) {
   striker.fielder = fielderName || '';
   let runs = 0;
   if (mode === 'Run Out') {
-    runs = parseInt(prompt('Runs completed before run out?', '0')) || 0;
-    inn.total += runs;
-    striker.runs += runs;
-    striker.balls = (striker.balls || 0) + 1;
+    // Ask how many runs were completed before the run out using the app's picker
+    showStdPick('Runs completed before run out?', [0, 1, 2, 3, 4, 5], function(val) {
+      const inn2 = stdInn();
+      if (!inn2) return;
+      const striker2 = stdBat(inn2.strikerIdx);
+      runs = val || 0;
+      inn2.total += runs;
+      striker2.runs += runs;
+      striker2.balls = (striker2.balls || 0) + 1;
+      inn2.history.push({ type: 'wicket', mode, runs: runs, b: inn2.strikerIdx, bowler: inn2.bowlerIdx, fielder: striker2.fielder, over: inn2.overs, ball: inn2.balls, runningTotal: inn2.total, bonus: false });
+      inn2.balls++;
+      if (inn2.balls >= 6) standardCompleteOver();
+      // Next batter in
+      if (inn2.nextBatIdx < stdBattingTeam().players.length) {
+        inn2.strikerIdx = inn2.nextBatIdx;
+        inn2.nextBatIdx++;
+      }
+      standardCheckInnings();
+      saveOnAction(); render();
+    });
+    return; // Wait for picker callback
   }
   inn.history.push({ type: 'wicket', mode, runs: runs, b: inn.strikerIdx, bowler: inn.bowlerIdx, fielder: striker.fielder, over: inn.overs, ball: inn.balls, runningTotal: inn.total, bonus: false });
   inn.balls++;

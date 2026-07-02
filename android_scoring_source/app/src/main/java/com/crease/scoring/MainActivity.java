@@ -175,6 +175,24 @@ public class MainActivity extends Activity {
                     .show();
                 return true;
             }
+
+            @Override
+            public boolean onJsPrompt(WebView view, String url, String message,
+                    String defaultInput, JsPromptResult result) {
+                android.widget.EditText input = new android.widget.EditText(MainActivity.this);
+                input.setText(defaultInput);
+                input.setSelectAllOnFocus(true);
+                input.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
+                new AlertDialog.Builder(MainActivity.this)
+                    .setTitle("the CREASE")
+                    .setMessage(message)
+                    .setView(input)
+                    .setPositiveButton("OK", (d, w) -> result.confirm(input.getText().toString()))
+                    .setNegativeButton("Cancel", (d, w) -> result.cancel())
+                    .setCancelable(false)
+                    .show();
+                return true;
+            }
         });
 
         // Disable long-press context menu
