@@ -1,17 +1,21 @@
+/* The CREASE — Service Worker for offline support */
 const CACHE = 'crease-v1';
-const URLS = ['index.html', 'manifest.json', 'crease_logo.png', '37_BarMark_Square_Orange_on_Black.png'];
+const URLS = ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', '37_BarMark_Square_Orange_on_Black.png'];
 
-self.addEventListener('install', function(e) {
-  e.waitUntil(caches.open(CACHE).then(function(c) { return c.addAll(URLS); }));
-  self.skipWaiting();
+self.addEventListener('install', e => {
+  e.waitUntil(
+    caches.open(CACHE).then(c => c.addAll(URLS)).then(() => self.skipWaiting())
+  );
 });
 
-self.addEventListener('activate', function(e) {
-  e.waitUntil(clients.claim());
+self.addEventListener('activate', e => {
+  e.waitUntil(
+    caches.keys().then(keys => Promise.all(keys.filter(k => k !== CACHE).map(k => caches.delete(k))))
+  );
 });
 
-self.addEventListener('fetch', function(e) {
+self.addEventListener('fetch', e => {
   e.respondWith(
-    caches.match(e.request).then(function(r) { return r || fetch(e.request); })
+    caches.match(e.request).then(r => r || fetch(e.request).catch(() => new Response('Offline', { status: 503 })))
   );
 });

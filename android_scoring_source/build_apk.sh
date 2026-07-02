@@ -28,6 +28,20 @@ echo "D8:        $(which d8)"
 echo "APKSigner: $(which apksigner)"
 echo ""
 
+# [0/6] Sync latest mobile source files to assets directory
+MOBILE_SOURCE_DIR="$(cd "$PROJECT_DIR/../../07_Operations/Scoring App/mobile" && pwd)"
+ASSETS_DIR="$PROJECT_DIR/app/src/main/assets"
+echo "[0/6] Syncing mobile source to assets..."
+echo "  From: $MOBILE_SOURCE_DIR"
+echo "  To:   $ASSETS_DIR"
+cp "$MOBILE_SOURCE_DIR/index.html"          "$ASSETS_DIR/index.html"
+cp "$MOBILE_SOURCE_DIR/sw.js"               "$ASSETS_DIR/sw.js"
+cp "$MOBILE_SOURCE_DIR/manifest.json"        "$ASSETS_DIR/manifest.json"
+cp "$MOBILE_SOURCE_DIR/icon-192.png"         "$ASSETS_DIR/icon-192.png"
+cp "$MOBILE_SOURCE_DIR/icon-512.png"         "$ASSETS_DIR/icon-512.png"
+echo "  Done."
+echo ""
+
 # Clean build dir
 BUILD_DIR="$PROJECT_DIR/build"
 rm -rf "$BUILD_DIR"
