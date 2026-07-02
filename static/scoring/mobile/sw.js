@@ -1,6 +1,6 @@
 /* The CREASE — Service Worker for offline support */
 const CACHE = 'crease-v1';
-const URLS = ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', 'SVG_BarMark_Black_on_Orange.svg'];
+const URLS = ['index.html', 'manifest.json', 'icon-192.png', 'icon-512.png', '37_BarMark_Square_Orange_on_Black.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(

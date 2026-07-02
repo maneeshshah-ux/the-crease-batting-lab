@@ -8,9 +8,13 @@ Data stored:
   - Historical session metrics (for longitudinal feedback)
   - Session IDs linking to analysis JSONs
 
-Storage:
-  Single JSON file (player_registry.json) co-located with the sessions/ dir.
-  No server, no login, no privacy concerns — fully local.
+Storage (dual-backend):
+  1. Supabase `players` table — used when SUPABASE_URL + key are configured.
+     Survives Render restarts. Players belong to coach_id (user's Supabase UID).
+  2. Local JSON file (player_registry.json) — fallback for offline / dev mode.
+     Lost on Render ephemeral-disk restarts.
+
+The calling code doesn't need to know which backend is active.
 """
 
 import os
@@ -21,6 +25,80 @@ from typing import List, Dict, Optional, Any, Tuple
 import numpy as np
 
 from .player_profiler import match_against_profiles
+
+# ── Supabase backend helpers ──────────────────────────────────────────────────
+
+def _sb_load_players(user_id: str) -> List[Dict]:
+    """Load all players for a user from Supabase."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from supabase_client import get_supabase, is_configured
+        if not is_configured():
+            return []
+        sb = get_supabase()
+        if sb is None:
+            return []
+        resp = (
+            sb.table("players")
+            .select("*")
+            .eq("coach_id", user_id)
+            .execute()
+        )
+        return resp.data or []
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("[PlayerRegistry] Supabase load failed: %s", exc)
+        return []
+
+
+def _sb_upsert_player(player: Dict, user_id: str) -> bool:
+    """Insert or update a player record in Supabase."""
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from supabase_client import get_supabase, is_configured
+        if not is_configured():
+            return False
+        sb = get_supabase()
+        if sb is None:
+            return False
+        # Map internal fields to Supabase schema
+        row = {
+            "coach_id":           user_id,
+            "name":               player.get("name"),
+            "label":              player.get("label", ""),
+            "batting_hand":       player.get("batting_hand"),
+            "stance_signature":   player.get("stance_signature", {}),
+            "historical_metrics": player.get("historical_metrics", {}),
+            "updated_at":         datetime.now().isoformat(),
+        }
+        # Use the internal `id` as the Supabase UUID if available
+        supabase_id = player.get("supabase_id")
+        if supabase_id:
+            sb.table("players").update(row).eq("id", supabase_id).execute()
+        else:
+            resp = sb.table("players").insert(row).execute()
+            if resp.data:
+                player["supabase_id"] = resp.data[0].get("id")
+        return True
+    except Exception as exc:
+        import logging
+        logging.getLogger(__name__).warning("[PlayerRegistry] Supabase upsert failed: %s", exc)
+        return False
+
+
+def _use_supabase(user_id: Optional[str] = None) -> bool:
+    """True if we should use Supabase (configured + user_id provided)."""
+    if not user_id:
+        return False
+    try:
+        import sys
+        sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        from supabase_client import is_configured
+        return is_configured()
+    except Exception:
+        return False
 
 
 DEFAULT_REGISTRY_PATH = os.path.join(
@@ -66,6 +144,7 @@ def find_or_create_player(
     session_metrics: Optional[Dict] = None,
     registry_path: str = DEFAULT_REGISTRY_PATH,
     match_threshold: float = 0.50,
+    user_id: Optional[str] = None,
 ) -> Tuple[Dict, bool]:
     """
     Find an existing player by stance signature, or create a new one.
@@ -76,10 +155,35 @@ def find_or_create_player(
         session_metrics: optional dict of key metrics for history
         registry_path: path to registry JSON
         match_threshold: similarity threshold (0-1)
+        user_id: Supabase user ID — enables cloud storage when provided
 
     Returns:
         (player_dict, is_new: bool)
     """
+    # ── Supabase backend ──────────────────────────────────────────────────
+    if _use_supabase(user_id):
+        players = _sb_load_players(user_id)
+        matched_id, score = match_against_profiles(
+            stance_signature, players, threshold=match_threshold
+        )
+        if matched_id:
+            player = next(p for p in players if p.get("id") == matched_id or p.get("supabase_id") == matched_id)
+            is_new_session = session_id not in player.get("session_ids", [])
+            if is_new_session:
+                player.setdefault("session_ids", []).append(session_id)
+            if session_metrics and is_new_session:
+                _update_historical_metrics(player, session_metrics, stance_signature)
+            _sb_upsert_player(player, user_id)
+            return player, False
+        else:
+            player = _create_player(stance_signature, session_id, session_metrics,
+                                    existing_players=players)
+            _sb_upsert_player(player, user_id)
+            print(f"  [Player Registry] New player created in Supabase "
+                  f"(similarity to closest match: {score:.2f})")
+            return player, True
+
+    # ── Local JSON fallback ───────────────────────────────────────────────
     registry = _load_registry(registry_path)
     players = registry.get("players", [])
 

@@ -24,3 +24,6 @@ fpdf2>=2.7.0
 # --- SaaS / Commercial ---
 supabase>=2.0.0
 stripe>=7.0.0
+
+# --- Voiceover ---
+edge-tts>=6.1.9

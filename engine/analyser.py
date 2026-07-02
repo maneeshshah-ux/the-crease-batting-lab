@@ -6,6 +6,7 @@ bat analysis, phase detection, and metrics calculation over a video file.
 import os
 import json
 import uuid
+import secrets
 import cv2
 import numpy as np
 from datetime import datetime
@@ -340,7 +341,7 @@ class BattingAnalyser:
         result = {
             "success": True,
             "session_id": session_id,
-            "share_token": share_token or session_id[:10],
+            "share_token": share_token or secrets.token_urlsafe(16),
             "video_path": video_path,
             "output_video_path": output_video_path,
             "total_frames": total_frames,

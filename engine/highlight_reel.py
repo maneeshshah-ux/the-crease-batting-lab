@@ -183,7 +183,7 @@ class HighlightReel:
             # Clip timing
             start_frame = max(0, shot.get("impact_frame", 0) - int(self.clip_duration * self.target_fps / 2))
             end_frame = start_frame + int(self.clip_duration * self.target_fps)
-            fps = session.get("fps", 30)
+            fps = session.get("video_fps") or session.get("fps", 30)
             ranked.append({
                 "shot_type": st,
                 "label": st.replace("_", " ").title(),

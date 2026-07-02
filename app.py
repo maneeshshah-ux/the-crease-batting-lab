@@ -12,6 +12,7 @@ Android: Install PWA from Chrome 'Add to Home Screen'
 import os
 import json
 import uuid
+import secrets
 import threading
 import functools
 import cv2
@@ -37,6 +38,11 @@ from stripe_payments import (
     handle_webhook, get_usage_remaining, increment_usage
 )
 from supabase_client import get_supabase, is_configured as supabase_configured
+from crease_currency import can_analyse, deduct_analysis_token, get_balance
+from cloud_storage import (
+    is_cloud_storage_configured, upload_session_json,
+    upload_report_pdf, upload_highlight_clip,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -53,7 +59,16 @@ for d in [UPLOAD_DIR, SESSION_DIR, REPORT_DIR, FRAME_DIR]:
     d.mkdir(exist_ok=True)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("SECRET_KEY", "the-crease-batting-lab-2026")
+_secret_key = os.environ.get("SECRET_KEY", "")
+if not _secret_key:
+    import warnings
+    warnings.warn(
+        "SECRET_KEY env var is not set. Flask sessions are insecure. "
+        "Set SECRET_KEY in Render env vars (render.yaml already has generateValue: true).",
+        stacklevel=2,
+    )
+    _secret_key = secrets.token_hex(32)  # ephemeral per-process key — sessions lost on restart
+app.secret_key = _secret_key
 app.config["MAX_CONTENT_LENGTH"] = 500 * 1024 * 1024  # 500 MB
 app.config["PREFERRED_URL_SCHEME"] = os.environ.get("URL_SCHEME", "http")
 app.config["SESSION_COOKIE_SECURE"] = os.environ.get("SESSION_COOKIE_SECURE", "false").lower() == "true"
@@ -125,6 +140,19 @@ def upload():
     if file.filename == "":
         return jsonify({"success": False, "error": "No file selected"}), 400
 
+    # ── Crease Currency gate ──────────────────────────────────────────────
+    current_user_id = session.get("user_id", "")
+    if current_user_id and not can_analyse(current_user_id):
+        balance = get_balance(current_user_id)
+        return render_template(
+            "upload.html",
+            error=(
+                f"You've used all {balance['limit']} free analyses this month. "
+                "Upgrade to Pro for unlimited access."
+            ),
+            balance=balance,
+        ), 402
+
     if not allowed_file(file.filename):
         return jsonify({
             "success": False,
@@ -143,8 +171,8 @@ def upload():
     ball_color = request.form.get("ball_color", "red")
     camera_view = request.form.get("camera_view", "side_off")
 
-    # Generate share token for viral distribution
-    share_token = uuid.uuid4().hex[:10]
+    # Generate secure share token for viral distribution
+    share_token = secrets.token_urlsafe(16)
 
     # Multi-camera session code (auto-generated; user can optionally enter existing)
     session_code = request.form.get("session_code", "").strip().upper()
@@ -694,8 +722,9 @@ def delete_session(session_id):
 
 
 @app.route("/api/delete-all", methods=["POST"])
+@login_required
 def api_delete_all():
-    """Delete all sessions."""
+    """Delete all sessions for the current user. Requires authentication."""
     for f in SESSION_DIR.glob("*.json"):
         f.unlink()
     return jsonify({"success": True})
@@ -887,6 +916,68 @@ def camera_guide():
 # Background Analysis
 # ---------------------------------------------------------------------------
 
+def _persist_session_to_supabase(result: dict, job: dict):
+    """
+    Write a completed analysis session to the Supabase `sessions` table.
+    Silently skips if Supabase is not configured or user is not logged in.
+    """
+    user_id = job.get("user_id", "")
+    if not user_id or not supabase_configured():
+        return
+
+    sb = get_supabase()
+    if sb is None:
+        return
+
+    try:
+        ss = result.get("session_summary", {})
+        shots = result.get("shot_summary", [])
+        bs = result.get("bat_speed", {})
+        head_score = ss.get("head_stability_score", 0)
+        total_shots = len(shots)
+        complete_shots = len([s for s in shots if s.get("has_impact")])
+        completion_pct = (complete_shots / total_shots * 100) if total_shots > 0 else 0
+        avg_knee  = ss.get("avg_front_knee_angle", 154)
+        avg_spine = ss.get("avg_spine_angle", 166)
+        peak_kmh  = bs.get("peak_kmh", 0) if bs.get("kmh_estimated") else 0
+
+        session_score = min(100, max(0,
+            (head_score * 0.35) +
+            (completion_pct * 0.25) +
+            (min(100, (avg_knee - 100) * 1.5) * 0.15) +
+            (min(100, max(0, 180 - avg_spine) * 3) * 0.15) +
+            (min(100, max(0, peak_kmh - 60)) * 0.10)
+        ))
+
+        row = {
+            "user_id":       user_id,
+            "session_label": job.get("session_label", ""),
+            "video_name":    job.get("video_name", ""),
+            "duration_sec":  result.get("duration_sec"),
+            "num_shots":     total_shots,
+            "session_score": round(session_score, 2),
+            "batting_hand":  result.get("batting_hand", "right"),
+            "camera_view":   result.get("camera_view", "side_off"),
+            "ball_color":    result.get("ball_color", "red"),
+            "summary_metrics": {
+                "head_stability_score":  head_score,
+                "avg_front_knee_angle":  avg_knee,
+                "avg_spine_angle":       avg_spine,
+                "bat_speed_peak_kmh":    peak_kmh,
+                "completion_pct":        round(completion_pct, 1),
+            },
+            "coaching_tips": result.get("coaching_tips", []),
+            "status": "completed",
+            "completed_at": datetime.now().isoformat(),
+        }
+
+        sb.table("sessions").insert(row).execute()
+        print(f"  [Supabase] Session persisted for user {user_id[:8]}…")
+
+    except Exception as exc:
+        print(f"  [Supabase] Session persist failed (non-fatal): {exc}")
+
+
 def _run_analysis(job_id, video_path, batting_hand, ball_color, camera_view):
     """Run analysis in background."""
     job = analysis_jobs.get(job_id)
@@ -960,6 +1051,18 @@ def _run_analysis(job_id, video_path, batting_hand, ball_color, camera_view):
                         json.dump(saved, f, indent=2, default=str)
                 except Exception as exc:
                     print(f"[save_session] Warning: could not update JSON: {exc}")
+
+            # ── Supabase persistence ──────────────────────────────────────
+            _persist_session_to_supabase(result, job)
+
+            # ── Cloud storage upload (R2/B2) ──────────────────────────────
+            if result_path and is_cloud_storage_configured():
+                upload_session_json(result.get("session_id", ""), result_path)
+
+            # ── Deduct Crease Currency token ──────────────────────────────
+            user_id = job.get("user_id", "")
+            if user_id:
+                deduct_analysis_token(user_id)
         else:
             job["status"] = "failed"
             job["error"] = result.get("error", "Unknown error")

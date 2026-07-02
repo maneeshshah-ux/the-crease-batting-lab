@@ -348,7 +348,7 @@ function render() {
 }
 
 function logoHTML(small) {
-  return '<div class="logo"><img src="SVG_BarMark_Black_on_Orange.svg" alt="The CREASE" style="height:' + (small ? 34 : 48) + 'px"></div>';
+  return '<div class="logo"><img src="37_BarMark_Square_Orange_on_Black.png" alt="The CREASE" style="height:' + (small ? 34 : 48) + 'px"></div>';
 }
 
 function renderSetup() {
@@ -809,35 +809,28 @@ function applyRuns(runs, hadBonus, bonusBatter) {
   inn.freeHit = false;
 }
 
-/** Add +1 bonus run to the batter who scored the last run */
+/** Add +1 bonus run to the batter who faced the previous/last ball */
 function addBonus() {
   const inn = S().innings;
   if (!inn || inn.complete) return;
   const hist = inn.history;
-  let lastIdx = -1;
-  // Find the most recent scoring shot
-  for (let i = hist.length - 1; i >= 0; i--) {
-    if (hist[i].type === 'run' && hist[i].runs > 0) {
-      lastIdx = i;
-      break;
-    }
+  if (hist.length === 0) {
+    alert('No previous delivery to add bonus to.');
+    return;
   }
-  if (lastIdx === -1) {
-    alert('No previous scoring shot to add bonus to.');
+  const last = hist[hist.length - 1];
+  if (!last.b) {
+    alert('Cannot determine batter from last delivery.');
     return;
   }
   pushUndo();
-  const h = hist[lastIdx];
-  const batter = h.b === 1 ? inn.b1 : inn.b2;
+  const batter = last.b === 1 ? inn.b1 : inn.b2;
   batter.runs += 1;
   batter.grossRuns += 1;
   batter.bonusRuns = (batter.bonusRuns || 0) + 1;
   inn.total += 1;
-  h.bonus = true;
-  // Update running totals for this and all subsequent entries
-  for (let j = lastIdx; j < hist.length; j++) {
-    hist[j].runningTotal += 1;
-  }
+  last.bonus = true;
+  last.runningTotal = (last.runningTotal || 0) + 1;
   saveOnAction(); render();
 }
 
@@ -1204,7 +1197,13 @@ function checkLimits() {
   if (!inn) return;
   if (inn.over >= inn.maxOvers) inn.complete = true;
   if (S().modifiedRules) {
-    if ((inn.b1.legalBf >= 18 || !canBat(1)) && (inn.b2.legalBf >= 18 || !canBat(2))) inn.complete = true;
+    if (inn.runner) {
+      const mainNum = inn.runner === 1 ? 2 : 1;
+      const main = mainNum === 1 ? inn.b1 : inn.b2;
+      if (main.legalBf >= 18 || !canBat(mainNum)) inn.complete = true;
+    } else {
+      if ((inn.b1.legalBf >= 18 || !canBat(1)) && (inn.b2.legalBf >= 18 || !canBat(2))) inn.complete = true;
+    }
   } else {
     if (inn.wkts >= 2) inn.complete = true;
     if ((inn.b1.legalBf >= 18 || inn.b1.howOut) && (inn.b2.legalBf >= 18 || inn.b2.howOut)) inn.complete = true;

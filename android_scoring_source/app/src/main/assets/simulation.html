@@ -234,29 +234,22 @@ function switchStrike() {
   return true;
 }
 
-/** Add +1 bonus run to the batter who scored the last run */
+/** Add +1 bonus run to the batter who faced the previous/last ball */
 function addBonus() {
   const inn = S().innings;
-  if (!inn || inn.complete) return;
+  if (!inn || inn.complete) return false;
   const hist = inn.history;
-  let lastIdx = -1;
-  for (let i = hist.length - 1; i >= 0; i--) {
-    if (hist[i].type === 'run' && hist[i].runs > 0) {
-      lastIdx = i;
-      break;
-    }
-  }
-  if (lastIdx === -1) return;
-  const h = hist[lastIdx];
-  const batter = h.b === 1 ? inn.b1 : inn.b2;
+  if (hist.length === 0) return false;
+  const last = hist[hist.length - 1];
+  if (!last.b) return false;
+  const batter = last.b === 1 ? inn.b1 : inn.b2;
   batter.runs += 1;
   batter.grossRuns += 1;
   batter.bonusRuns = (batter.bonusRuns || 0) + 1;
   inn.total += 1;
-  h.bonus = true;
-  for (let j = lastIdx; j < hist.length; j++) {
-    hist[j].runningTotal += 1;
-  }
+  last.bonus = true;
+  last.runningTotal = (last.runningTotal || 0) + 1;
+  return true;
 }
 
 function endOver() {
@@ -567,36 +560,38 @@ function testSwitchStrike() {
 function testBonusRun() {
   const inn = startInnings(2); // Vijay + Arjun
   
-  // Score some runs first
-  addRun(1); scenariosRun++; // Vijay scores 1
+  // Score first then add bonus to the last ball's batter
+  addRun(1); scenariosRun++; // Vijay scores 1, strike rotates to Arjun
   assert(inn.total === 1, 'Team total = 1 after single');
   assert(inn.b1.runs === 1, 'b1 (Vijay) scored 1');
   
-  // Add bonus to the last scoring batter (Vijay)
+  // Add bonus to the last ball — Vijay faced it, so he gets +1
   addBonus(); scenariosRun++;
   assert(inn.total === 2, 'Team total = 2 after bonus');
   assert(inn.b1.runs === 2, 'b1 runs = 2 after bonus');
   assert(inn.b1.bonusRuns === 1, 'b1 bonusRuns = 1');
   assert(inn.b1.grossRuns === 2, 'b1 grossRuns = 2');
+  assert(inn.history[0].bonus === true, 'Bonus flagged on last delivery');
+  assert(inn.history[0].runningTotal === 2, 'runningTotal updated');
   
-  // Check bonus is recorded on the last run entry
-  const lastHist = inn.history[inn.history.length - 1]; // the bonus modifies hist[0]
-  assert(inn.history[0].bonus === true, 'Bonus flagged on scoring entry');
+  // Score another run — Arjun faces (striker after rotation was Arjun)
+  addRun(2); scenariosRun++; // Arjun scores 2 (even)
+  assert(inn.total === 4, 'Team total = 4');
+  assert(inn.b2.runs === 2, 'b2 (Arjun) scored 2');
   
-  // Score more runs with the other batter
-  addRun(3); scenariosRun++; // Arjun scores 3 (odd runs, strike rotates back)
-  assert(inn.total === 5, 'Team total = 5');
-  assert(inn.b1.runs === 2, 'b1 still 2');
-  
-  // Add bonus to the last scoring batter (should be b2/Arjun since he just scored)
+  // Add bonus to this last ball — Arjun faced it
   addBonus(); scenariosRun++;
-  assert(inn.total === 6, 'Team total = 6 after second bonus');
+  assert(inn.total === 5, 'Team total = 5 after second bonus');
   assert(inn.b2.bonusRuns === 1, 'b2 bonusRuns = 1');
-  assert(inn.b2.runs === 4, 'b2 runs = 3+1 = 4');
+  assert(inn.b2.runs === 3, 'b2 runs = 2+1 = 3');
+  assert(inn.history[1].bonus === true, 'Bonus flagged on second delivery');
   
-  // Verify running totals are updated in all subsequent history entries
-  assert(inn.history[1].runningTotal === 3, 'runningTotal updated for hist[1]'); // was 2 → now 3
-  assert(inn.history[2].runningTotal === 6, 'runningTotal updated for hist[2]'); // was 5 → now 6
+  // Bonus on a dot ball — batter didn't score but still gets the bonus
+  addRun(0); scenariosRun++; // dot ball
+  addBonus(); scenariosRun++;
+  assert(inn.total === 6, 'Team total = 6 after bonus on dot ball');
+  // b2 faced the dot ball (Arjun was striker since he scored 2 last)
+  assert(inn.b2.bonusRuns === 2, 'b2 bonusRuns = 2 (even on dot ball)');
   
   completeInnings();
 }

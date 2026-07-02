@@ -24,5 +24,32 @@ services:
       - key: SECRET_KEY
         generateValue: true
 
+      # Supabase (required for auth, session persistence, player registry)
+      - key: SUPABASE_URL
+        sync: false   # set manually in Render dashboard
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+
+      # Stripe (optional — enables paid tiers)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+
+      # Cloudflare R2 (optional — enables persistent file storage)
+      # Get these from: dash.cloudflare.com → R2 → your bucket → API tokens
+      - key: CLOUDFLARE_R2_ENDPOINT
+        sync: false   # e.g. https://<account_id>.r2.cloudflarestorage.com
+      - key: CLOUDFLARE_R2_ACCESS_KEY
+        sync: false
+      - key: CLOUDFLARE_R2_SECRET_KEY
+        sync: false
+      - key: CLOUDFLARE_R2_BUCKET
+        sync: false
+      - key: STORAGE_PUBLIC_URL_PREFIX
+        sync: false   # e.g. https://pub-<hash>.r2.dev (your public R2 domain)
+
     # Health check path
     healthCheckPath: /
