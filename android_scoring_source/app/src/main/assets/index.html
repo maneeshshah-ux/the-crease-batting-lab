@@ -524,6 +524,7 @@ function renderMatch() {
     return '<div class="bat-card' + (isStriker ? ' striker' : '') + '">'
       + '<div class="name">' + nn + (isStriker ? ' \u2726' : '') + '</div>'
       + '<div class="runs">' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</div>'
+      + '<div style="font-size:9px;color:var(--dim)">' + ((b.grossRuns||0)-(b.runs||0) > 0 ? '<span style="color:var(--red)">-' + ((b.grossRuns||0)-(b.runs||0)) + '</span> = ' : '') + b.runs + (b.dismissals ? ' (' + b.dismissals + 'x)' : '') + '</div>'
       + '<div class="stat"><span>' + b.bf + ' b</span><span>' + b.dotBalls + ' dots</span><span>' + b.fours + ' 4s</span><span>' + b.sixes + ' 6s</span></div>'
       + (b.howOut ? '<div class="dismissal-info">' + b.howOut + '</div>' : '')
       + (isRetired ? '<div class="retired">RETIRED</div>' : '')
@@ -579,7 +580,7 @@ function renderMatch() {
     + (isNewOver ? '<span class="new-over-badge">NEW OVER</span>' : '') + '</div></div>'
     + '<div class="match-bar"><div>'
     + '<div class="score">' + inn.total + '/' + inn.wkts + (extTotal > 0 ? ' <small>ext ' + extTotal + '</small>' : '') + '</div>'
-    + '<div style="font-size:10px;color:var(--dim)">' + inn.b1Name + ': ' + inn.b1.runs + ' &nbsp; ' + inn.b2Name + ': ' + inn.b2.runs + '</div></div>'
+    + '<div style="font-size:10px;color:var(--dim)">' + inn.b1Name + ': R' + (inn.b1.grossRuns||0) + ' <span style="color:var(--red)">-' + ((inn.b1.grossRuns||0)-(inn.b1.runs||0)) + '</span>=' + inn.b1.runs + ' (' + (inn.b1.dismissals||0) + 'x) &nbsp;&nbsp;' + inn.b2Name + ': R' + (inn.b2.grossRuns||0) + ' <span style="color:var(--red)">-' + ((inn.b2.grossRuns||0)-(inn.b2.runs||0)) + '</span>=' + inn.b2.runs + ' (' + (inn.b2.dismissals||0) + 'x)</div></div>'
     + '<div class="meta"><div><strong>' + oversDisplay(inn) + '</strong></div>'
     + '<div>Over ' + (inn.over + 1) + '/' + inn.maxOvers + '</div>'
     + (inn.freeHit ? '<div class="fh">\u2726 FREE HIT</div>' : '') + '</div></div>'
@@ -626,8 +627,12 @@ function inningsCompleteHtml(inn) {
     var name = i === 0 ? inn.b1Name : inn.b2Name;
     var sr = b.bf > 0 ? ((b.runs / b.bf) * 100).toFixed(0) : '-';
     var howOut = b.howOut || (b.legalBf >= 18 ? 'retired' : 'not out');
+    var gross = b.grossRuns !== undefined ? b.grossRuns : b.runs;
+    var minus = gross - b.runs;
     bHtml += '<tr><td class="name">' + name + '</td>'
-      + '<td>' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</td>'
+      + '<td>' + gross + '</td>'
+      + '<td style="color:var(--red)">' + minus + '</td>'
+      + '<td>' + b.runs + '</td>'
       + '<td>' + b.bf + '</td>'
       + '<td style="color:#8b8fa3">' + (b.dotBalls || 0) + '</td>'
       + '<td>' + b.fours + '</td>'
@@ -670,7 +675,7 @@ function inningsCompleteHtml(inn) {
     + '</div>'
     + '<div class="summary-card" style="margin-bottom:8px"><h2>Batting</h2>'
     + '<table class="summary-table" style="font-size:11px">'
-    + '<tr><th>Batter</th><th>R</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>How Out</th></tr>'
+    + '<tr><th>Batter</th><th>R</th><th>-</th><th>Net</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>How Out</th></tr>'
     + bHtml + '</table></div>'
     + (bowlRows
       ? '<div class="summary-card" style="margin-bottom:8px"><h2>Bowling</h2>'
@@ -691,9 +696,11 @@ function renderScorecard() {
   const extTotal = ext.wides + ext.noBalls + ext.byes + ext.legByes;
 
   let bHtml = '';
-  for (const b of [{ name: inn.b1Name, runs: b1.runs, balls: b1.bf, dotBalls: b1.dotBalls, fours: b1.fours, sixes: b1.sixes, threes: b1.threes || 0, bonusRuns: b1.bonusRuns, howOut: b1.howOut, retired: b1.legalBf >= 18 }, { name: inn.b2Name, runs: b2.runs, balls: b2.bf, dotBalls: b2.dotBalls, fours: b2.fours, sixes: b2.sixes, threes: b2.threes || 0, bonusRuns: b2.bonusRuns, howOut: b2.howOut, retired: b2.legalBf >= 18 }]) {
+  for (const b of [{ name: inn.b1Name, grossRuns: b1.grossRuns, runs: b1.runs, balls: b1.bf, dotBalls: b1.dotBalls, fours: b1.fours, sixes: b1.sixes, threes: b1.threes || 0, bonusRuns: b1.bonusRuns, howOut: b1.howOut, retired: b1.legalBf >= 18 }, { name: inn.b2Name, grossRuns: b2.grossRuns, runs: b2.runs, balls: b2.bf, dotBalls: b2.dotBalls, fours: b2.fours, sixes: b2.sixes, threes: b2.threes || 0, bonusRuns: b2.bonusRuns, howOut: b2.howOut, retired: b2.legalBf >= 18 }]) {
     const dis = b.howOut || (b.retired ? 'Retired' : (inn.complete ? 'Not Out' : 'Batting'));
-    bHtml += '<tr><td class="name">' + b.name + '</td><td>' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</td><td>' + b.balls + '</td><td>' + b.dotBalls + '</td><td>' + b.fours + '</td><td>' + b.sixes + '</td><td>' + b.threes + '</td><td>' + (b.bonusRuns || '') + '</td><td style="font-size:10px;color:var(--dim)">' + dis + '</td></tr>';
+    var gross = b.grossRuns !== undefined ? b.grossRuns : b.runs;
+    var minus = gross - b.runs;
+    bHtml += '<tr><td class="name">' + b.name + '</td><td>' + gross + '</td><td style="color:var(--red)">' + minus + '</td><td>' + b.runs + '</td><td>' + b.balls + '</td><td>' + b.dotBalls + '</td><td>' + b.fours + '</td><td>' + b.sixes + '</td><td>' + b.threes + '</td><td>' + (b.bonusRuns || '') + '</td><td style="font-size:10px;color:var(--dim)">' + dis + '</td></tr>';
   }
 
   const bd = {};
@@ -736,9 +743,9 @@ function renderScorecard() {
     + '<div class="scorecard-view">'
     + '<div class="sc-header"><h2>Pair ' + inn.pairNo + '</h2><p>' + inn.b1Name + ' &amp; ' + inn.b2Name + ' \u00b7 Over ' + (inn.over + 1) + '/' + inn.maxOvers + '</p></div>'
     + '<div class="summary-card"><h2>Batting</h2><table class="summary-table">'
-    + '<tr><th>Batter</th><th>R</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bonus</th><th>How Out</th></tr>'
+    + '<tr><th>Batter</th><th>R</th><th>-</th><th>Net</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bonus</th><th>How Out</th></tr>'
     + bHtml
-    + '<tr><td style="font-weight:700;padding-top:6px;border-top:1px solid var(--border)">Extras</td><td colspan="8" style="padding-top:6px;border-top:1px solid var(--border);font-size:10px;color:var(--dim)">b ' + ext.byes + ' \u00b7 lb ' + ext.legByes + ' \u00b7 w ' + ext.wides + ' \u00b7 nb ' + ext.noBalls + ' \u00b7 <strong>Total ' + extTotal + '</strong></td></tr>'
+    + '<tr><td style="font-weight:700;padding-top:6px;border-top:1px solid var(--border)">Extras</td><td colspan="9" style="padding-top:6px;border-top:1px solid var(--border);font-size:10px;color:var(--dim)">b ' + ext.byes + ' \u00b7 lb ' + ext.legByes + ' \u00b7 w ' + ext.wides + ' \u00b7 nb ' + ext.noBalls + ' \u00b7 <strong>Total ' + extTotal + '</strong></td></tr>'
     + '<tr><td style="font-weight:700;font-size:14px;color:var(--orange)">Total</td><td colspan="8" style="font-weight:800;font-size:16px;color:var(--orange)">' + inn.total + '/' + inn.wkts + ' <span style="font-weight:400;font-size:12px;color:var(--dim)">(' + inn.over + '.' + inn.legalBalls + ' ov)</span></td></tr>'
     + '</table></div>'
     + (bowlHtml ? '<div class="summary-card"><h2>Bowling</h2><table class="summary-table"><tr><th>Bowler</th><th>O</th><th>R</th><th>W</th><th>Wd</th><th>NB</th><th>Dots</th></tr>' + bowlHtml + '</table></div>' : '')
@@ -959,14 +966,10 @@ function confirmWideWkt(mode) {
   var actualRuns = runsBefore;
   if (actualRuns % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
   
-  // Runs before wicket go to the striker (at time of runs, before rotation above)
-  // The striker BEFORE rotation is the one who was on strike
+  // The striker BEFORE rotation
   var strikerAtDelivery = actualRuns % 2 === 1 ? (inn2.striker === 1 ? 2 : 1) : inn2.striker;
-  if (actualRuns > 0) {
-    var strikerBat = strikerAtDelivery === 1 ? inn2.b1 : inn2.b2;
-    strikerBat.runs += actualRuns;
-    strikerBat.grossRuns += actualRuns;
-  }
+  // NOTE: Runs off a wide do NOT go to the batter's personal tally — they are all wide runs for the team
+  
   // Wide penalty + scored runs (modified rules apply)
   var scoredWideRuns = S().modifiedRules && actualRuns === 3 ? 4 : actualRuns;
   var wideTotal = 1 + scoredWideRuns;
@@ -1005,32 +1008,201 @@ function confirmWideWkt(mode) {
 function noBall() {
   const inn = S().innings;
   if (!inn || inn.complete) return;
+  // Custom no-ball picker with runs, byes, leg-byes, and wicket options
+  closeAllModals();
+  const m = document.createElement('div');
+  m.className = 'modal-overlay'; m.id = 'pm'; // reuse closePickModal()
+  m.innerHTML = '<div class="modal"><h3>No Ball \u2014 outcome?</h3>'
+    + '<div class="section-title" style="font-size:10px;margin:4px 0">Runs by batter</div>'
+    + '<div class="pick-grid">'
+    + [0,1,2,3,4,6].map(function(v) {
+        var style = 'font-size:18px;font-weight:800;border-radius:10px;padding:14px 0';
+        if (v === 0) style += ';background:#2d3548;color:#666';
+        else if (v === 4) style += ';background:#1f6feb;color:#fff';
+        else if (v === 6) style += ';background:#6a1b9a;color:#fff';
+        return '<button class="btn" style="' + style + '" onclick="closePickModal();processNoBallRuns(' + v + ')">' + v + '</button>';
+      }).join('')
+    + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">'
+    + '<button class="btn" style="flex:1;background:#2d7d46;color:#fff;font-size:13px;font-weight:800;border-radius:10px;padding:10px 0" onclick="closePickModal();processNoBallByes()">Byes</button>'
+    + '<button class="btn" style="flex:1;background:#1f6feb;color:#fff;font-size:13px;font-weight:800;border-radius:10px;padding:10px 0" onclick="closePickModal();processNoBallLegByes()">Leg Byes</button>'
+    + '<button class="btn" style="flex:1;background:#c0392b;color:#fff;font-size:13px;font-weight:800;border-radius:10px;padding:10px 0" onclick="closePickModal();nbWktMode(\'Run Out\')">Run Out</button>'
+    + '<button class="btn" style="flex:1;background:#8e44ad;color:#fff;font-size:13px;font-weight:800;border-radius:10px;padding:10px 0" onclick="closePickModal();nbWktMode(\'Stumped\')">Stumped</button>'
+    + '</div>'
+    + '<div class="modal-actions" style="margin-top:10px"><button class="btn btn-dark" onclick="closePickModal()">Cancel</button></div></div>';
+  document.body.appendChild(m);
+}
+
+/** Process no-ball with runs scored by the batter */
+function processNoBallRuns(runs) {
+  const inn2 = S().innings;
+  if (!inn2 || inn2.complete) return;
+  pushUndo();
+  const st = striker();
+  if (!st) return;
+  if (runs === 3) st.threes++;
+  const batRuns = S().modifiedRules && runs === 3 ? 4 : runs;
+  st.runs += batRuns; st.grossRuns += batRuns; st.bf++;
+  if (batRuns === 0) st.dotBalls++;
+  if (runs === 4) st.fours++;
+  if (runs === 6) st.sixes++;
+  inn2.total += 1 + batRuns;
+  inn2.extras.noBalls += 1;
+  inn2.totalBalls++;
+  if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+  inn2.history.push({
+    type: 'noball', over: inn2.over, ballNum: inn2.legalBalls + 1,
+    b: inn2.striker, runs: 1 + batRuns, freeHit: false,
+    bowler: inn2.currentBowler, runningTotal: inn2.total
+  });
+  inn2.freeHit = true;
+  tryRotateStrike();
+  saveOnAction(); render();
+}
+
+/** Process no-ball with byes — show byes picker */
+function processNoBallByes() {
+  const inn = S().innings;
+  if (!inn || inn.complete) return;
   window._pickFn = function(runs) {
     const inn2 = S().innings;
     if (!inn2 || inn2.complete) return;
     pushUndo();
-    const st = striker();
-    if (!st) return;
-    if (runs === 3) st.threes++;
-    const batRuns = S().modifiedRules && runs === 3 ? 4 : runs;
-    st.runs += batRuns; st.grossRuns += batRuns; st.bf++;
-    if (batRuns === 0) st.dotBalls++;
-    if (runs === 4) st.fours++;
-    if (runs === 6) st.sixes++;
-    inn2.total += 1 + batRuns;
+    const scoredByes = S().modifiedRules && runs === 3 ? 4 : runs;
+    // No-ball penalty (1) + byes
+    inn2.total += 1 + scoredByes;
     inn2.extras.noBalls += 1;
+    inn2.extras.byes = (inn2.extras.byes || 0) + scoredByes;
     inn2.totalBalls++;
+    // No runs or ball counted for batter — byes off a no-ball
     if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
     inn2.history.push({
       type: 'noball', over: inn2.over, ballNum: inn2.legalBalls + 1,
-      b: inn2.striker, runs: 1 + batRuns, freeHit: false,
-      bowler: inn2.currentBowler, runningTotal: inn2.total
+      b: inn2.striker, runs: 1 + scoredByes, freeHit: false,
+      bowler: inn2.currentBowler, runningTotal: inn2.total,
+      nbSubType: 'byes'
     });
     inn2.freeHit = true;
     tryRotateStrike();
     saveOnAction(); render();
   };
-  showPickModal('No Ball \u2014 runs scored?', [0, 1, 2, 3, 4, 6]);
+  showPickModal('No Ball Byes \u2014 runs?', [1, 2, 3, 4]);
+}
+
+/** Process no-ball with leg-byes — show leg-byes picker */
+function processNoBallLegByes() {
+  const inn = S().innings;
+  if (!inn || inn.complete) return;
+  window._pickFn = function(runs) {
+    const inn2 = S().innings;
+    if (!inn2 || inn2.complete) return;
+    pushUndo();
+    const scoredLB = S().modifiedRules && runs === 3 ? 4 : runs;
+    inn2.total += 1 + scoredLB;
+    inn2.extras.noBalls += 1;
+    inn2.extras.legByes = (inn2.extras.legByes || 0) + scoredLB;
+    inn2.totalBalls++;
+    if (runs % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+    inn2.history.push({
+      type: 'noball', over: inn2.over, ballNum: inn2.legalBalls + 1,
+      b: inn2.striker, runs: 1 + scoredLB, freeHit: false,
+      bowler: inn2.currentBowler, runningTotal: inn2.total,
+      nbSubType: 'legbyes'
+    });
+    inn2.freeHit = true;
+    tryRotateStrike();
+    saveOnAction(); render();
+  };
+  showPickModal('No Ball Leg Byes \u2014 runs?', [1, 2, 3, 4]);
+}
+
+/** Start wicket-off-no-ball flow */
+function nbWktMode(mode) {
+  const inn = S().innings;
+  if (!inn || inn.complete) return;
+  closePickModal();
+  // Show wicket modal for no-ball dismissals
+  const m = document.createElement('div');
+  m.className = 'modal-overlay'; m.id = 'nbWktModal';
+  m.innerHTML = '<div class="modal"><h3>' + mode + ' off No Ball</h3>'
+    + '<div class="field"><label>Fielder</label>'
+    + '<select id="nbWktFs" style="color-scheme:dark"><option value="">Select fielder</option>'
+    + S().allPlayers.map(function(n) { return '<option value="' + n + '" style="color:var(--text);background:var(--bg)">' + n + '</option>'; }).join('')
+    + '<option value="other" style="color:var(--text);background:var(--bg)">Other...</option></select>'
+    + '<input id="nbWktFo" placeholder="Fielder name" style="display:none;margin-top:4px"></div>'
+    + '<div class="field"><label>Batter out</label>'
+    + '<select id="nbWktRb" style="color-scheme:dark"><option value="1">' + inn.b1Name + ' (striker)</option><option value="2">' + inn.b2Name + ' (non-striker)</option></select></div>'
+    + '<div class="field"><label>Runs completed before dismissal</label>'
+    + '<div style="display:flex;gap:4px;margin-top:4px">'
+    + [0,1,2,3].map(function(v) { return '<button class="btn btn-sm" style="flex:1" onclick="document.getElementById(\'nbWktRuns\').value='+v+';this.style.borderColor=\'var(--orange)\'">'+v+'</button>'; }).join('')
+    + '</div>'
+    + '<input id="nbWktRuns" type="number" min="0" max="3" value="0" style="width:60px;margin-top:4px"></div>'
+    + '<div class="modal-actions"><button class="btn btn-dark" onclick="closeNbWktModal()">Cancel</button>'
+    + '<button class="btn btn-orange" onclick="confirmNbWkt(\'' + mode + '\')">Confirm</button></div></div>';
+  document.body.appendChild(m);
+}
+
+function closeNbWktModal() { var m = document.getElementById('nbWktModal'); if (m) m.remove(); }
+
+function confirmNbWkt(mode) {
+  var inn2 = S().innings;
+  if (!inn2 || inn2.complete) { closeNbWktModal(); return; }
+  pushUndo();
+  var sel = document.getElementById('nbWktFs');
+  var fo = document.getElementById('nbWktFo');
+  var fielder = sel ? (sel.value === 'other' ? (fo && fo.value && fo.value.trim() || 'Unknown') : (sel.value || 'Unknown')) : 'Unknown';
+  var rb = document.getElementById('nbWktRb');
+  var outB = rb ? parseInt(rb.value) : inn2.striker;
+  var runsBefore = parseInt(document.getElementById('nbWktRuns').value) || 0;
+  closeNbWktModal();
+  
+  // Strike rotation based on runs before dismissal
+  var strikerAtDelivery = inn2.striker;
+  if (runsBefore % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+  
+  // No-ball penalty (1) applies regardless
+  inn2.total += 1;
+  inn2.extras.noBalls += 1;
+  inn2.totalBalls++;
+  
+  // Runs before wicket — on a no-ball, these go to the striker's tally
+  var batRuns = S().modifiedRules && runsBefore === 3 ? 4 : runsBefore;
+  if (runsBefore > 0) {
+    var strikerBat = strikerAtDelivery === 1 ? inn2.b1 : inn2.b2;
+    strikerBat.runs += batRuns;
+    strikerBat.grossRuns += batRuns;
+    strikerBat.bf++;
+    if (batRuns === 0) strikerBat.dotBalls++;
+    inn2.total += batRuns;
+  }
+  
+  // Record the no-ball delivery
+  inn2.history.push({
+    type: 'noball', over: inn2.over, ballNum: inn2.legalBalls + 1,
+    b: strikerAtDelivery, runs: 1 + batRuns, freeHit: false,
+    bowler: inn2.currentBowler, runningTotal: inn2.total,
+    wicketMode: mode, wicketFielder: fielder, wicketOutB: outB
+  });
+  
+  // Now process the wicket
+  var bat = outB === 1 ? inn2.b1 : inn2.b2;
+  var penalty = bat.legalBf < 12 ? 5 : 2;
+  bat.runs -= penalty;
+  inn2.total -= penalty;
+  inn2.extras.penalty = (inn2.extras.penalty || 0) + penalty;
+  bat.bf++;
+  if (bat.legalBf < 18) bat.legalBf++;
+  inn2.wkts++;
+  
+  inn2.history.push({
+    type: 'wicket', over: inn2.over, ballNum: inn2.legalBalls + 1,
+    b: outB, runs: runsBefore, mode: mode, fielder: fielder,
+    bowler: inn2.currentBowler, freeHit: false, runningTotal: inn2.total,
+    strikerB: strikerAtDelivery, fromNoBall: true
+  });
+  inn2.freeHit = false;
+  tryRotateStrike();
+  saveOnAction(); render();
 }
 
 function byes() {
@@ -1505,21 +1677,26 @@ function renderSummary() {
     phtml += '<div style="font-weight:bold;font-size:11px;color:var(--orange);margin-top:2px;margin-bottom:2px">Batting</div>'
       + '<table style="width:100%;font-size:11px;border-collapse:collapse">'
       + '<tr style="color:var(--dim);border-bottom:1px solid var(--border)"><td style="padding:1px 4px">Batter</td>'
-      + '<td style="padding:1px 4px;text-align:center">R</td><td style="padding:1px 4px;text-align:center">B</td>'
+      + '<td style="padding:1px 4px;text-align:center">R</td><td style="padding:1px 4px;text-align:center">-</td><td style="padding:1px 4px;text-align:center">Net</td>'
+      + '<td style="padding:1px 4px;text-align:center">B</td>'
       + '<td style="padding:1px 4px;text-align:center">Dots</td><td style="padding:1px 4px;text-align:center;color:var(--blue)">4s</td>'
       + '<td style="padding:1px 4px;text-align:center;color:var(--purple)">6s</td><td style="padding:1px 4px;text-align:center;color:var(--amber)">3s</td>'
       + '<td style="padding:1px 4px;text-align:center;color:var(--orange)">Bn</td><td style="padding:1px 4px;text-align:center">SR</td>'
-      + '<td style="padding:1px 4px">How Out</td></tr>';
+      + '<td style="padding:1px 4px">How Out</td></tr>'
 
     [inn.b1, inn.b2].forEach(function(b, i) {
       const name = i === 0 ? inn.b1Name : inn.b2Name;
       const hOut = i === 0 ? howOut1 : howOut2;
+      const gross = b.grossRuns !== undefined ? b.grossRuns : b.runs;
+      const minus = gross - b.runs;
       const sr = b.bf > 0 ? ((b.runs / b.bf) * 100).toFixed(0) : '-';
       const howOut = hOut.length > 0 ? hOut.join(', ') : (b.legalBf >= 18 ? 'retired' : 'not out');
       const bgSt = i % 2 === 1 ? 'background:rgba(255,255,255,0.02);' : '';
       phtml += '<tr style="' + bgSt + '">'
         + '<td style="padding:1px 4px"><strong>' + name + '</strong></td>'
-        + '<td style="padding:1px 4px;text-align:center">' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</td>'
+        + '<td style="padding:1px 4px;text-align:center">' + gross + '</td>'
+        + '<td style="padding:1px 4px;text-align:center;color:var(--red)">' + minus + '</td>'
+        + '<td style="padding:1px 4px;text-align:center">' + b.runs + '</td>'
         + '<td style="padding:1px 4px;text-align:center">' + b.bf + '</td>'
         + '<td style="padding:1px 4px;text-align:center;color:#8b8fa3">' + (b.dotBalls || 0) + '</td>'
         + '<td style="padding:1px 4px;text-align:center">' + b.fours + '</td>'
@@ -2048,21 +2225,26 @@ function renderSessionView(session, date, idx) {
     phtml += '<div style="font-weight:bold;font-size:11px;color:#8b8fa3;margin-top:4px">Batting</div>'
       + '<table style="width:100%;font-size:11px;border-collapse:collapse">'
       + '<tr style="color:#8b8fa3;border-bottom:1px solid var(--border)"><td style="padding:1px 4px">Batter</td>'
-      + '<td style="padding:1px 4px;text-align:center">R</td><td style="padding:1px 4px;text-align:center">B</td>'
+      + '<td style="padding:1px 4px;text-align:center">R</td><td style="padding:1px 4px;text-align:center">-</td><td style="padding:1px 4px;text-align:center">Net</td>'
+      + '<td style="padding:1px 4px;text-align:center">B</td>'
       + '<td style="padding:1px 4px;text-align:center">Dots</td><td style="padding:1px 4px;text-align:center">4s</td>'
       + '<td style="padding:1px 4px;text-align:center">6s</td><td style="padding:1px 4px;text-align:center">3s</td>'
       + '<td style="padding:1px 4px;text-align:center">Bn</td><td style="padding:1px 4px;text-align:center">SR</td>'
-      + '<td style="padding:1px 4px">How Out</td></tr>';
+      + '<td style="padding:1px 4px">How Out</td></tr>'
 
     [inn.b1, inn.b2].forEach(function(b, i) {
       const name = i === 0 ? inn.b1Name : inn.b2Name;
       const hOut = i === 0 ? howOut1 : howOut2;
+      const gross = b.grossRuns !== undefined ? b.grossRuns : b.runs;
+      const minus = gross - b.runs;
       const sr = b.bf > 0 ? ((b.runs / b.bf) * 100).toFixed(0) : '-';
       const howOut = hOut.length > 0 ? hOut.join(', ') : (b.legalBf >= 18 ? 'retired' : 'not out');
       const bgSt = i % 2 === 1 ? 'background:rgba(255,255,255,0.02);' : '';
       phtml += '<tr style="' + bgSt + '">'
         + '<td style="padding:1px 4px"><strong>' + name + '</strong></td>'
-        + '<td style="padding:1px 4px;text-align:center">' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + '</td>'
+        + '<td style="padding:1px 4px;text-align:center">' + gross + '</td>'
+        + '<td style="padding:1px 4px;text-align:center;color:var(--red)">' + minus + '</td>'
+        + '<td style="padding:1px 4px;text-align:center">' + b.runs + '</td>'
         + '<td style="padding:1px 4px;text-align:center">' + b.bf + '</td>'
         + '<td style="padding:1px 4px;text-align:center;color:#8b8fa3">' + (b.dotBalls || 0) + '</td>'
         + '<td style="padding:1px 4px;text-align:center">' + b.fours + '</td>'
@@ -2673,11 +2855,13 @@ function exportSessionCSV(date, idx) {
       lines.push('PAIR ' + inn.pairNo + ',' + esc(inn.b1Name) + ' & ' + esc(inn.b2Name) + ',Total: ' + inn.total + '/' + inn.wkts + ',Overs: ' + inn.over + '.' + inn.legalBalls);
       lines.push('');
 
-      lines.push('BATTING,B,BF,Dots,4s,6s,3s,Bonus,SR,How Out');
+      lines.push('BATTING,R,-,Net,B,Dots,4s,6s,3s,Bonus,SR,How Out');
       function row(name, b) {
+        var gross = b.grossRuns !== undefined ? b.grossRuns : b.runs;
+        var minus = gross - b.runs;
         var sr = b.bf > 0 ? ((b.runs/b.bf)*100).toFixed(0) : '-';
         var hO = (b.legalBf >= 18 && !b.howOut) ? 'retired' : (b.howOut || 'not out');
-        return esc(name) + ',' + b.runs + ',' + b.bf + ',' + (b.dotBalls||0) + ',' + b.fours + ',' + b.sixes + ',' + (b.threes||0) + ',' + (b.bonusRuns||0) + ',' + sr + ',' + esc(hO);
+        return esc(name) + ',' + gross + ',' + minus + ',' + b.runs + ',' + b.bf + ',' + (b.dotBalls||0) + ',' + b.fours + ',' + b.sixes + ',' + (b.threes||0) + ',' + (b.bonusRuns||0) + ',' + sr + ',' + esc(hO);
       }
       lines.push(row(inn.b1Name, inn.b1));
       lines.push(row(inn.b2Name, inn.b2));
@@ -2723,12 +2907,13 @@ function exportSessionCSV(date, idx) {
     lines.push('');
 
     var batStats = {};
-    allPlayers.forEach(function(n) { batStats[n] = { runs:0, bf:0, fours:0, sixes:0, threes:0, dotBalls:0, bonusRuns:0 }; });
+    allPlayers.forEach(function(n) { batStats[n] = { runs:0, grossRuns:0, bf:0, fours:0, sixes:0, threes:0, dotBalls:0, bonusRuns:0, dismissals:0 }; });
     innings.forEach(function(inn) {
       [{name:inn.b1Name,b:inn.b1},{name:inn.b2Name,b:inn.b2}].forEach(function(item) {
         var bs = batStats[item.name];
-        if (!bs) { bs = { runs:0, bf:0, fours:0, sixes:0, threes:0, dotBalls:0, bonusRuns:0 }; batStats[item.name] = bs; }
-        bs.runs += (item.b.grossRuns !== undefined ? item.b.grossRuns : item.b.runs);
+        if (!bs) { bs = { runs:0, grossRuns:0, bf:0, fours:0, sixes:0, threes:0, dotBalls:0, bonusRuns:0, dismissals:0 }; batStats[item.name] = bs; }
+        bs.runs += (item.b.runs || 0);
+        bs.grossRuns += (item.b.grossRuns !== undefined ? item.b.grossRuns : item.b.runs);
         bs.bf += item.b.bf;
         bs.fours += item.b.fours;
         bs.sixes += item.b.sixes;
@@ -2737,12 +2922,22 @@ function exportSessionCSV(date, idx) {
         bs.bonusRuns += item.b.bonusRuns || 0;
       });
     });
-    lines.push('BATTING SUMMARY,Player,R,B,Dots,4s,6s,3s,Bonus,SR');
+    // Count dismissals
+    innings.forEach(function(inn) {
+      (inn.history||[]).forEach(function(h) {
+        if (h.type === 'wicket') {
+          var nm = h.b === 1 ? inn.b1Name : inn.b2Name;
+          if (batStats[nm]) batStats[nm].dismissals = (batStats[nm].dismissals || 0) + 1;
+        }
+      });
+    });
+    lines.push('BATTING SUMMARY,Player,R,-,Net,B,Dots,4s,6s,3s,Bn,SR,Out');
     var batNames = Object.keys(batStats).sort();
     batNames.forEach(function(name) {
       var bs = batStats[name];
+      var minus = (bs.grossRuns||0) - (bs.runs||0);
       var sr = bs.bf > 0 ? ((bs.runs/bs.bf)*100).toFixed(0) : '-';
-      lines.push(',' + esc(name) + ',' + bs.runs + ',' + bs.bf + ',' + bs.dotBalls + ',' + bs.fours + ',' + bs.sixes + ',' + (bs.threes||'') + ',' + (bs.bonusRuns||'') + ',' + sr);
+      lines.push(',' + esc(name) + ',' + (bs.grossRuns||0) + ',' + minus + ',' + (bs.runs||0) + ',' + bs.bf + ',' + bs.dotBalls + ',' + bs.fours + ',' + bs.sixes + ',' + (bs.threes||'') + ',' + (bs.bonusRuns||'') + ',' + sr + ',' + (bs.dismissals||0));
     });
     lines.push('');
 
@@ -2890,12 +3085,14 @@ function exportCurrentCSV() {
       lines.push('');
 
       // Batting
-      lines.push('BATTING,B,BF,Dots,4s,6s,3s,Bonus,SR,How Out');
+      lines.push('BATTING,R,-,Net,B,Dots,4s,6s,3s,Bonus,SR,How Out');
       [inn.b1, inn.b2].forEach(function(b, i) {
         var name = i === 0 ? inn.b1Name : inn.b2Name;
+        var gross = b.grossRuns !== undefined ? b.grossRuns : b.runs;
+        var minus = gross - b.runs;
         var sr = b.bf > 0 ? ((b.runs / b.bf) * 100).toFixed(0) : '-';
         var howOut = b.howOut || (b.legalBf >= 18 ? 'retired' : 'not out');
-        lines.push(esc(name) + ',' + (b.grossRuns !== undefined ? b.grossRuns : b.runs) + ',' + b.bf + ',' + (b.dotBalls||0) + ',' + b.fours + ',' + b.sixes + ',' + (b.threes||0) + ',' + (b.bonusRuns||0) + ',' + sr + ',' + esc(howOut));
+        lines.push(esc(name) + ',' + gross + ',' + minus + ',' + b.runs + ',' + b.bf + ',' + (b.dotBalls||0) + ',' + b.fours + ',' + b.sixes + ',' + (b.threes||0) + ',' + (b.bonusRuns||0) + ',' + sr + ',' + esc(howOut));
       });
       lines.push('');
 
@@ -2930,18 +3127,28 @@ function exportCurrentCSV() {
 
     // Session summary
     var sessBat = {};
-    allPlayers.forEach(function(n) { sessBat[n] = { runs:0, bf:0, fours:0, sixes:0, threes:0, dotBalls:0, bonusRuns:0 }; });
+    allPlayers.forEach(function(n) { sessBat[n] = { runs:0, grossRuns:0, bf:0, fours:0, sixes:0, threes:0, dotBalls:0, bonusRuns:0, dismissals:0 }; });
     innings.forEach(function(inn) {
       [inn.b1, inn.b2].forEach(function(b, i) {
         var name = i === 0 ? inn.b1Name : inn.b2Name;
-        if (!sessBat[name]) sessBat[name] = { runs:0, bf:0, fours:0, sixes:0, threes:0, dotBalls:0, bonusRuns:0 };
-        sessBat[name].runs += (b.grossRuns !== undefined ? b.grossRuns : b.runs);
+        if (!sessBat[name]) sessBat[name] = { runs:0, grossRuns:0, bf:0, fours:0, sixes:0, threes:0, dotBalls:0, bonusRuns:0, dismissals:0 };
+        sessBat[name].runs += (b.runs || 0);
+        sessBat[name].grossRuns += (b.grossRuns !== undefined ? b.grossRuns : b.runs);
         sessBat[name].bf += b.bf;
         sessBat[name].fours += b.fours;
         sessBat[name].sixes += b.sixes;
         sessBat[name].threes += b.threes || 0;
         sessBat[name].dotBalls += b.dotBalls || 0;
         sessBat[name].bonusRuns += b.bonusRuns || 0;
+      });
+    });
+    // Count dismissals
+    innings.forEach(function(inn) {
+      (inn.history||[]).forEach(function(h) {
+        if (h.type === 'wicket') {
+          var nm = h.b === 1 ? inn.b1Name : inn.b2Name;
+          if (sessBat[nm]) sessBat[nm].dismissals = (sessBat[nm].dismissals || 0) + 1;
+        }
       });
     });
 
@@ -2951,12 +3158,13 @@ function exportCurrentCSV() {
     lines.push('SESSION SUMMARY');
     lines.push('Total Runs,' + tRuns + ',Total Wickets,' + tWkts);
     lines.push('');
-    lines.push('BATTING SUMMARY,Player,R,B,Dots,4s,6s,3s,Bonus,SR');
+    lines.push('BATTING SUMMARY,Player,R,-,Net,B,Dots,4s,6s,3s,Bn,SR,Out');
     var pNames = Object.keys(sessBat).sort();
     pNames.forEach(function(nm) {
       var bs = sessBat[nm];
+      var minus = (bs.grossRuns||0) - (bs.runs||0);
       var sr = bs.bf > 0 ? ((bs.runs / bs.bf) * 100).toFixed(0) : '-';
-      lines.push(',' + esc(nm) + ',' + bs.runs + ',' + bs.bf + ',' + bs.dotBalls + ',' + bs.fours + ',' + bs.sixes + ',' + (bs.threes||'') + ',' + (bs.bonusRuns||'') + ',' + sr);
+      lines.push(',' + esc(nm) + ',' + (bs.grossRuns||0) + ',' + minus + ',' + (bs.runs||0) + ',' + bs.bf + ',' + bs.dotBalls + ',' + bs.fours + ',' + bs.sixes + ',' + (bs.threes||'') + ',' + (bs.bonusRuns||'') + ',' + sr + ',' + (bs.dismissals||0));
     });
 
     var csv = lines.join('\n');
