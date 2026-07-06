@@ -414,7 +414,7 @@ function renderSetup() {
     + '<div class="card"><h2>Rules</h2>'
     + '<div class="toggle-row"><label>Modified rules (3\u21924 runs, bonus run, wicket penalty)</label>'
     + '<label class="toggle"><input type="checkbox" id="rulesToggle"' + (s.modifiedRules ? ' checked' : '') + ' onchange="S().modifiedRules=this.checked"><span class="slider"></span></label></div>'
-    + '<div style="font-size:10px;color:var(--dim);line-height:1.5;margin-top:6px"><strong>Modified:</strong> 3 runs scored as 4 \u00b7 +1 bonus run toggle \u00b7 wicket penalty -5 (ov 1-4) / -2 (ov 5-6) \u00b7 pair bats all 6 overs regardless of wickets</div></div>'
+    + '<div style="font-size:10px;color:var(--dim);line-height:1.5;margin-top:6px"><strong>Modified:</strong> 3 runs scored as 4 \u00b7 +1 bonus run toggle \u00b7 wicket penalty -5 (1st 12 legal balls) / -2 (last 6 legal balls) \u00b7 pair bats all 6 overs regardless of wickets</div></div>'
     + '<button class="btn btn-orange btn-block" onclick="startMatch()">Start Match \u2192</button>'
     + '<div style="font-size:11px;color:var(--dim);text-align:center;margin-top:6px">6 overs per pair \u00b7 18 balls max per batter</div></div>';
 }
@@ -875,26 +875,131 @@ function handlePick() {
 function wideBall() {
   const inn = S().innings;
   if (!inn || inn.complete) return;
-  window._pickFn = function(extra) {
-    const inn2 = S().innings;
-    if (!inn2 || inn2.complete) return;
-    pushUndo();
-    const batRuns = extra;  // actual runs completed (before modified rules adjustment)
-    const scoredRuns = S().modifiedRules && extra === 3 ? 4 : extra;
-    const total = 1 + scoredRuns;
-    inn2.total += total;
-    inn2.extras.wides += total;
-    inn2.totalBalls++;
-    if (batRuns % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
-    inn2.history.push({
-      type: 'wide', over: inn2.over, ballNum: inn2.legalBalls + 1,
-      b: inn2.striker, runs: total, freeHit: false,
-      bowler: inn2.currentBowler, runningTotal: inn2.total
-    });
-    tryRotateStrike();
-    saveOnAction(); render();
-  };
-  showPickModal('Wide \u2014 runs batted?', [0, 1, 2, 3, 4]);
+  // Custom picker with runs AND wicket options
+  closeAllModals();
+  const m = document.createElement('div');
+  m.className = 'modal-overlay'; m.id = 'pm'; // reuse closePickModal()
+  let btnsHtml = '';
+  [0, 1, 2, 3, 4].forEach(function(v) {
+    var style = 'font-size:18px;font-weight:800;border-radius:10px;padding:14px 0;flex:1';
+    if (v === 0) style += ';background:#2d3548;color:#666';
+    btnsHtml += '<button class="btn" style="' + style + '" onclick="closePickModal();processWideRuns(' + v + ')">' + v + '</button>';
+  });
+  m.innerHTML = '<div class="modal"><h3>Wide \u2014 runs batted?</h3>'
+    + '<div class="pick-grid">' + btnsHtml + '</div>'
+    + '<div style="display:flex;gap:6px;margin-top:10px">'
+    + '<button class="btn" style="flex:1;background:#c0392b;color:#fff;font-size:14px;font-weight:800;border-radius:10px;padding:12px 0" onclick="closePickModal();wideWktMode(\'Run Out\')">Run Out</button>'
+    + '<button class="btn" style="flex:1;background:#8e44ad;color:#fff;font-size:14px;font-weight:800;border-radius:10px;padding:12px 0" onclick="closePickModal();wideWktMode(\'Stumped\')">Stumped</button>'
+    + '</div>'
+    + '<div class="modal-actions" style="margin-top:10px"><button class="btn btn-dark" onclick="closePickModal()">Cancel</button></div></div>';
+  document.body.appendChild(m);
+}
+
+/** Process wide with runs batted (no wicket) */
+function processWideRuns(batRuns) {
+  const inn2 = S().innings;
+  if (!inn2 || inn2.complete) return;
+  pushUndo();
+  const scoredRuns = S().modifiedRules && batRuns === 3 ? 4 : batRuns;
+  const total = 1 + scoredRuns;
+  inn2.total += total;
+  inn2.extras.wides += total;
+  inn2.totalBalls++;
+  if (batRuns % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+  inn2.history.push({
+    type: 'wide', over: inn2.over, ballNum: inn2.legalBalls + 1,
+    b: inn2.striker, runs: total, freeHit: false,
+    bowler: inn2.currentBowler, runningTotal: inn2.total
+  });
+  tryRotateStrike();
+  saveOnAction(); render();
+}
+
+/** Start wicket-off-wide flow — show wicket modal with Run Out/Stumped only */
+function wideWktMode(mode) {
+  const inn = S().innings;
+  if (!inn || inn.complete) return;
+  closePickModal();
+  // Show a mini wicket modal just for fielder selection
+  const m = document.createElement('div');
+  m.className = 'modal-overlay'; m.id = 'wideWktModal';
+  m.innerHTML = '<div class="modal"><h3>' + mode + ' off Wide</h3>'
+    + '<div class="field"><label>Fielder</label>'
+    + '<select id="wideWktFs" style="color-scheme:dark"><option value="">Select fielder</option>'
+    + S().allPlayers.map(function(n) { return '<option value="' + n + '" style="color:var(--text);background:var(--bg)">' + n + '</option>'; }).join('')
+    + '<option value="other" style="color:var(--text);background:var(--bg)">Other...</option></select>'
+    + '<input id="wideWktFo" placeholder="Fielder name" style="display:none;margin-top:4px"></div>'
+    + '<div class="field"><label>Batter out</label>'
+    + '<select id="wideWktRb" style="color-scheme:dark"><option value="1">' + inn.b1Name + ' (striker)</option><option value="2">' + inn.b2Name + ' (non-striker)</option></select></div>'
+    + '<div class="field"><label>Runs completed before dismissal</label>'
+    + '<div style="display:flex;gap:4px;margin-top:4px">'
+    + [0,1,2,3].map(function(v) { return '<button class="btn btn-sm" style="flex:1" onclick="document.getElementById(\'wideWktRuns\').value='+v+';this.style.borderColor=\'var(--orange)\'">'+v+'</button>'; }).join('')
+    + '</div>'
+    + '<input id="wideWktRuns" type="number" min="0" max="3" value="0" style="width:60px;margin-top:4px"></div>'
+    + '<div class="modal-actions"><button class="btn btn-dark" onclick="closeWideWktModal()">Cancel</button>'
+    + '<button class="btn btn-orange" onclick="confirmWideWkt(\'' + mode + '\')">Confirm</button></div></div>';
+  document.body.appendChild(m);
+}
+
+function closeWideWktModal() { var m = document.getElementById('wideWktModal'); if (m) m.remove(); }
+
+function confirmWideWkt(mode) {
+  var inn2 = S().innings;
+  if (!inn2 || inn2.complete) { closeWideWktModal(); return; }
+  pushUndo();
+  var sel = document.getElementById('wideWktFs');
+  var fo = document.getElementById('wideWktFo');
+  var fielder = sel ? (sel.value === 'other' ? (fo && fo.value && fo.value.trim() || 'Unknown') : (sel.value || 'Unknown')) : 'Unknown';
+  var rb = document.getElementById('wideWktRb');
+  var outB = rb ? parseInt(rb.value) : inn2.striker;
+  var runsBefore = parseInt(document.getElementById('wideWktRuns').value) || 0;
+  closeWideWktModal();
+  
+  // Strike rotation based on runs before dismissal (actual runs run, before modified)
+  var actualRuns = runsBefore;
+  if (actualRuns % 2 === 1) inn2.striker = inn2.striker === 1 ? 2 : 1;
+  
+  // Runs before wicket go to the striker (at time of runs, before rotation above)
+  // The striker BEFORE rotation is the one who was on strike
+  var strikerAtDelivery = actualRuns % 2 === 1 ? (inn2.striker === 1 ? 2 : 1) : inn2.striker;
+  if (actualRuns > 0) {
+    var strikerBat = strikerAtDelivery === 1 ? inn2.b1 : inn2.b2;
+    strikerBat.runs += actualRuns;
+    strikerBat.grossRuns += actualRuns;
+  }
+  // Wide penalty + scored runs (modified rules apply)
+  var scoredWideRuns = S().modifiedRules && actualRuns === 3 ? 4 : actualRuns;
+  var wideTotal = 1 + scoredWideRuns;
+  inn2.total += wideTotal;
+  inn2.extras.wides += wideTotal;
+  inn2.totalBalls++;
+  inn2.history.push({
+    type: 'wide', over: inn2.over, ballNum: inn2.legalBalls + 1,
+    b: strikerAtDelivery, runs: wideTotal, freeHit: false,
+    bowler: inn2.currentBowler, runningTotal: inn2.total,
+    wicketMode: mode, wicketFielder: fielder, wicketOutB: outB
+  });
+  
+  // Now process the wicket
+  var bat = outB === 1 ? inn2.b1 : inn2.b2;
+  var penalty = bat.legalBf < 12 ? 5 : 2;
+  bat.runs -= penalty;
+  inn2.total -= penalty;
+  inn2.extras.penalty = (inn2.extras.penalty || 0) + penalty;
+  bat.bf++;
+  if (bat.legalBf < 18) bat.legalBf++;
+  inn2.wkts++;
+  // No legal ball increment — wide doesn't count as a legal delivery
+  
+  inn2.history.push({
+    type: 'wicket', over: inn2.over, ballNum: inn2.legalBalls + 1,
+    b: outB, runs: actualRuns, mode: mode, fielder: fielder,
+    bowler: inn2.currentBowler, freeHit: false, runningTotal: inn2.total,
+    strikerB: strikerAtDelivery, fromWide: true
+  });
+  inn2.freeHit = false;
+  tryRotateStrike();
+  saveOnAction(); render();
 }
 
 function noBall() {
@@ -1090,9 +1195,10 @@ function confirmWkt() {
       if (!inn2 || inn2.complete) { closeWktModal(); return; }
       runsBefore = runsBefore || 0;
       if (runsBefore > 0) {
-        const bat = ob === 1 ? inn2.b1 : inn2.b2;
-        bat.runs += runsBefore;
-        bat.grossRuns += runsBefore;
+        // The striker gets the runs, not the out-batter
+        const strikerBat = inn2.striker === 1 ? inn2.b1 : inn2.b2;
+        strikerBat.runs += runsBefore;
+        strikerBat.grossRuns += runsBefore;
         inn2.total += runsBefore;
       }
       closeWktModal();
@@ -1147,8 +1253,12 @@ function processWkt(mode, fielder, outB, runsBefore) {
   const inn = S().innings;
   const bat = outB === 1 ? inn.b1 : inn.b2;
 
+  // Track who was on strike at the time of dismissal (for report display)
+  const strikerAtWkt = inn.striker;
+
   if (S().modifiedRules) {
-    const penalty = inn.over <= 3 ? 5 : 2;
+    // Penalty based on batter's legal balls faced: first 12 = -5, last 6 = -2
+    const penalty = bat.legalBf < 12 ? 5 : 2;
     bat.runs -= penalty;
     inn.total -= penalty;
     inn.extras.penalty = (inn.extras.penalty || 0) + penalty;
@@ -1162,7 +1272,8 @@ function processWkt(mode, fielder, outB, runsBefore) {
     inn.history.push({
       type: 'wicket', over: inn.over, ballNum: inn.legalBalls,
       b: outB, runs: wktRuns, mode: mode, fielder: fielder,
-      bowler: inn.currentBowler, freeHit: false, runningTotal: inn.total
+      bowler: inn.currentBowler, freeHit: false, runningTotal: inn.total,
+      strikerB: strikerAtWkt  // who was on strike for this delivery
     });
     inn.freeHit = false;
     checkOver();
@@ -1190,7 +1301,8 @@ function processWkt(mode, fielder, outB, runsBefore) {
     inn.history.push({
       type: 'wicket', over: inn.over, ballNum: inn.legalBalls,
       b: outB, runs: wktRuns2, mode: mode, fielder: fielder,
-      bowler: inn.currentBowler, freeHit: false, runningTotal: inn.total
+      bowler: inn.currentBowler, freeHit: false, runningTotal: inn.total,
+      strikerB: strikerAtWkt  // who was on strike for this delivery
     });
     inn.freeHit = false;
     checkOver();
@@ -2191,7 +2303,7 @@ function generateSessionHTML(date, idx, session) {
     hist.forEach(function(h) {
       if (!h.bowler) return;
       if (!bowlStats[h.bowler]) bowlStats[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0, econ: 0 };
-      if (h.type === 'wide') { bowlStats[h.bowler].wides++; return; }
+      if (h.type === 'wide') { bowlStats[h.bowler].wides++; bowlStats[h.bowler].runs += (h.runs || 0); return; }
       if (h.type === 'noball') { bowlStats[h.bowler].noballs++; return; }
       if (h.type === 'penalty') { return; }
       bowlStats[h.bowler].balls++;
@@ -2210,20 +2322,108 @@ function generateSessionHTML(date, idx, session) {
     if (extras.noBalls) extParts.push('NB ' + extras.noBalls);
     if (extras.penalty) extParts.push('Penalty ' + extras.penalty);
 
-    var bbbRows = '';
-    hist.forEach(function(h, hi) {
-      var nm = h.b === 1 ? inn.b1Name : inn.b2Name;
+    // --- Build per-batter ball-by-ball grid ---
+    var b1Events = [], b2Events = [], b1BallLabels = [], b2BallLabels = [];
+    hist.forEach(function(h) {
+      var striker = h.strikerB || h.b; // who was on strike (batter number)
+      var outB = h.type === 'wicket' ? (h.fromWide ? h.wicketOutB : h.b) : null;
+      var runsOnBall = 0;
       var desc = '';
-      if (h.type === 'wicket') desc = 'WICKET - ' + nm + ' ' + h.mode + (h.fielder ? ' c ' + h.fielder : '');
-      else if (h.type === 'wide') desc = 'Wide' + (h.runs > 1 ? ' (' + h.runs + ')' : '');
-      else if (h.type === 'noball') desc = 'No Ball (' + h.runs + ' runs)';
-      else if (h.type === 'bye') desc = h.runs + ' bye' + (h.runs > 1 ? 's' : '');
-      else if (h.type === 'legbye') desc = h.runs + ' leg bye' + (h.runs > 1 ? 's' : '');
-      else if (h.type === 'penalty') desc = 'Penalty ' + (h.runs > 0 ? '+' : '') + h.runs;
-      else desc = nm + ' ' + h.runs + (h.bonus ? ' (+1 bonus)' : '');
-      var bg = hi % 2 === 0 ? ' style="background:#fafafa"' : '';
-      bbbRows += '<tr' + bg + '><td class="bb">' + (h.over + 1) + '.' + h.ballNum + '</td><td class="bb">' + desc + '</td><td class="bb" style="text-align:right;font-weight:700">' + h.runningTotal + '</td></tr>';
+      var isWicket = h.type === 'wicket';
+      var isWide = h.type === 'wide';
+      var isNoBall = h.type === 'noball';
+
+      // Determine the batter who gets credit for runs on this ball
+      var creditB = striker; // by default, striker gets run credit
+      if (isWide && h.wicketMode) {
+        // Wide with wicket: no legal ball, runs go to striker
+        creditB = striker;
+      } else if (isWide) {
+        // Normal wide: no batter gets runs
+        creditB = 0;
+      } else if (h.type === 'bye' || h.type === 'legbye') {
+        creditB = 0; // no batter credit for byes
+      } else if (isWicket && creditB) {
+        // Wicket ball: runs credited to striker (or 0 if run out and non-striker out)
+      }
+
+      // Build event label
+      var nmStriker = striker === 1 ? inn.b1Name : inn.b2Name;
+      var nmOut = outB === 1 ? inn.b1Name : inn.b2Name;
+      if (isWicket) {
+        var runsStr = h.runs > 0 ? nmStriker + ' ' + h.runs + ', ' : '';
+        var fielderStr = '';
+        if (h.fielder) {
+          switch (h.mode) {
+            case 'Caught': fielderStr = ' c ' + h.fielder; break;
+            case 'Stumped': fielderStr = ' st ' + h.fielder; break;
+            case 'Run Out': fielderStr = ' (' + h.fielder + ')'; break;
+            default: fielderStr = h.fielder ? ' (' + h.fielder + ')' : '';
+          }
+        }
+        desc = runsStr + 'WICKET ' + nmOut + ' (' + h.mode + fielderStr + ')';
+      } else if (isWide) {
+        desc = 'Wd' + (h.runs > 1 ? ' (' + h.runs + ')' : '');
+      } else if (isNoBall) {
+        desc = 'NB' + (h.runs > 1 ? ' (' + h.runs + ')' : '');
+      } else if (h.type === 'bye') {
+        desc = h.runs + 'b';
+      } else if (h.type === 'legbye') {
+        desc = h.runs + 'lb';
+      } else if (h.type === 'penalty') {
+        desc = 'Pen ' + (h.runs > 0 ? '+' : '') + h.runs;
+      } else {
+        desc = (h.runs || '0') + (h.bonus ? ' (+1 bonus)' : '');
+      }
+
+      var label = (h.over + 1) + '.' + h.ballNum;
+      if (striker === 1) {
+        b1Events.push(desc);
+        b1BallLabels.push(label);
+        b2Events.push('');
+        b2BallLabels.push('');
+      } else if (striker === 2) {
+        b2Events.push(desc);
+        b2BallLabels.push(label);
+        b1Events.push('');
+        b1BallLabels.push('');
+      } else {
+        // No batter credit (wide, bye, legbye) — show in both or neither
+        b1Events.push(desc);
+        b1BallLabels.push(label);
+        b2Events.push(desc);
+        b2BallLabels.push(label);
+      }
     });
+
+    var bbbGrid = '';
+    if (b1Events.length > 0 || b2Events.length > 0) {
+      var maxEvents = Math.max(b1Events.length, b2Events.length);
+      function bbbRow(label, events, ballLabels) {
+        var r = '<tr><td class="name" style="font-size:10px;white-space:nowrap;min-width:60px">' + label + '</td>';
+        for (var i = 0; i < maxEvents; i++) {
+          var ev = events[i] || '';
+          var bl = ballLabels[i] || '';
+          if (ev) {
+            var evClass = ev.indexOf('WICKET') >= 0 ? 'wicket' : (ev.indexOf('Wd') >= 0 ? 'wide' : '');
+            r += '<td class="bb ' + evClass + '" style="text-align:center;font-size:9px;padding:2px 3px;min-width:28px" title="' + bl + ': ' + ev + '">' + ev + '</td>';
+          } else {
+            r += '<td class="bb" style="text-align:center;font-size:9px;padding:2px 3px;color:#ccc">-</td>';
+          }
+        }
+        return r + '</tr>';
+      }
+      bbbGrid = '<div class="section-title">Ball-by-Ball</div>'
+        + '<table class="bbb"><tr><th style="width:60px">Batter</th>';
+      for (var i = 0; i < maxEvents; i++) {
+        var lbl = b1BallLabels[i] || b2BallLabels[i] || '';
+        bbbGrid += '<th style="text-align:center;font-size:8px;padding:2px 3px;min-width:28px">' + lbl + '</th>';
+      }
+      bbbGrid += '</tr>'
+        + bbbRow(inn.b1Name, b1Events, b1BallLabels)
+        + bbbRow(inn.b2Name, b2Events, b2BallLabels)
+        + '</table>';
+    }
 
     var grossTotal = 0;
     hist.forEach(function(h) { if (h.runs > 0) grossTotal += h.runs; });
@@ -2236,15 +2436,21 @@ function generateSessionHTML(date, idx, session) {
       + ' <span class="dim">(' + inn.over + '.' + inn.legalBalls + ' overs' + (penaltyTotal > 0 ? ', gross ' + grossTotal + ', pen -' + penaltyTotal : '') + ')</span></div>'
 
       + '<div class="section-title">Batting</div>'
-      + '<table><tr><th>Batter</th><th>R</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>SR</th><th>How Out</th></tr>'
+      + '<table><tr><th>Batter</th><th>R</th><th>-</th><th>Net</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>SR</th><th>How Out</th></tr>'
       + '<tr><td class="name">' + inn.b1Name + '</td>'
-      + '<td>' + inn.b1.runs + '</td><td>' + inn.b1.bf + '</td><td>' + (inn.b1.dotBalls||0) + '</td>'
+      + '<td>' + (inn.b1.grossRuns||0) + '</td>'
+      + '<td>' + ((inn.b1.grossRuns||0) - (inn.b1.runs||0)) + '</td>'
+      + '<td>' + (inn.b1.runs||0) + '</td>'
+      + '<td>' + inn.b1.bf + '</td><td>' + (inn.b1.dotBalls||0) + '</td>'
       + '<td>' + inn.b1.fours + '</td><td>' + inn.b1.sixes + '</td><td>' + (inn.b1.threes||0) + '</td>'
       + '<td>' + (inn.b1.bonusRuns||0) + '</td>'
       + '<td>' + (inn.b1.bf > 0 ? ((inn.b1.runs/inn.b1.bf)*100).toFixed(0) : '-') + '</td>'
       + '<td>' + (howOut1.length > 0 ? howOut1.join(', ') : (inn.b1.legalBf >= 18 ? 'retired' : 'not out')) + '</td></tr>'
       + '<tr><td class="name">' + inn.b2Name + '</td>'
-      + '<td>' + inn.b2.runs + '</td><td>' + inn.b2.bf + '</td><td>' + (inn.b2.dotBalls||0) + '</td>'
+      + '<td>' + (inn.b2.grossRuns||0) + '</td>'
+      + '<td>' + ((inn.b2.grossRuns||0) - (inn.b2.runs||0)) + '</td>'
+      + '<td>' + (inn.b2.runs||0) + '</td>'
+      + '<td>' + inn.b2.bf + '</td><td>' + (inn.b2.dotBalls||0) + '</td>'
       + '<td>' + inn.b2.fours + '</td><td>' + inn.b2.sixes + '</td><td>' + (inn.b2.threes||0) + '</td>'
       + '<td>' + (inn.b2.bonusRuns||0) + '</td>'
       + '<td>' + (inn.b2.bf > 0 ? ((inn.b2.runs/inn.b2.bf)*100).toFixed(0) : '-') + '</td>'
@@ -2265,11 +2471,7 @@ function generateSessionHTML(date, idx, session) {
           + '</table>'
         : '')
 
-      + (hist.length > 0
-        ? '<div class="section-title">Ball-by-Ball</div>'
-          + '<table class="bbb"><tr><th style="width:50px">Over</th><th>Event</th><th style="width:60px;text-align:right">Total</th></tr>'
-          + bbbRows + '</table>'
-        : '')
+      + bbbGrid
 
       + '</div></div>';
   });
@@ -2277,25 +2479,39 @@ function generateSessionHTML(date, idx, session) {
   var batStats = {};
   innings.forEach(function(inn) {
     [{name: inn.b1Name, b: inn.b1}, {name: inn.b2Name, b: inn.b2}].forEach(function(item) {
-      if (!batStats[item.name]) batStats[item.name] = { runs: 0, bf: 0, fours: 0, sixes: 0, threes: 0, dotBalls: 0, bonusRuns: 0 };
+      if (!batStats[item.name]) batStats[item.name] = { runs: 0, grossRuns: 0, bf: 0, fours: 0, sixes: 0, threes: 0, dotBalls: 0, bonusRuns: 0, dismissals: 0 };
       var bs = batStats[item.name];
-      bs.runs += (item.b.grossRuns !== undefined ? item.b.grossRuns : item.b.runs);
+      bs.runs += (item.b.runs || 0);  // net runs (after penalty)
+      bs.grossRuns += (item.b.grossRuns !== undefined ? item.b.grossRuns : item.b.runs);
       bs.bf += item.b.bf;
       bs.fours += item.b.fours;
       bs.sixes += item.b.sixes;
       bs.threes += item.b.threes || 0;
       bs.dotBalls += item.b.dotBalls || 0;
       bs.bonusRuns += item.b.bonusRuns || 0;
+      // Count dismissals from history
+    });
+  });
+  // Count dismissals per batter
+  innings.forEach(function(inn) {
+    (inn.history || []).forEach(function(h) {
+      if (h.type === 'wicket') {
+        var nm = h.b === 1 ? inn.b1Name : inn.b2Name;
+        if (batStats[nm]) batStats[nm].dismissals = (batStats[nm].dismissals || 0) + 1;
+      }
     });
   });
   var allBatNames = allPlayers.length > 0 ? allPlayers.slice().sort() : Object.keys(batStats).sort();
   var batRows = '';
   allBatNames.forEach(function(name) {
-    var bs = batStats[name] || { runs: 0, bf: 0, fours: 0, sixes: 0, threes: 0, dotBalls: 0, bonusRuns: 0 };
+    var bs = batStats[name] || { runs: 0, grossRuns: 0, bf: 0, fours: 0, sixes: 0, threes: 0, dotBalls: 0, bonusRuns: 0, dismissals: 0 };
+    var minusRuns = (bs.grossRuns || 0) - (bs.runs || 0);
+    var netScore = (bs.runs || 0);  // net runs after penalty deductions
     var sr = bs.bf > 0 ? ((bs.runs / bs.bf) * 100).toFixed(0) : '-';
-    batRows += '<tr><td class="name">' + name + '</td><td>' + bs.runs + '</td><td>' + bs.bf + '</td>'
+    batRows += '<tr><td class="name">' + name + '</td><td>' + (bs.grossRuns||0) + '</td><td>' + minusRuns + '</td><td>' + netScore + '</td><td>' + bs.bf + '</td>'
       + '<td>' + bs.dotBalls + '</td><td>' + bs.fours + '</td><td>' + bs.sixes + '</td>'
-      + '<td>' + (bs.threes || '') + '</td><td>' + (bs.bonusRuns || '') + '</td><td>' + sr + '</td></tr>';
+      + '<td>' + (bs.threes || '') + '</td><td>' + (bs.bonusRuns || '') + '</td><td>' + sr + '</td>'
+      + '<td>' + (bs.dismissals || 0) + '</td></tr>';
   });
 
   var bowlStats = {};
@@ -2303,7 +2519,7 @@ function generateSessionHTML(date, idx, session) {
     (inn.history || []).forEach(function(h) {
       if (!h.bowler) return;
       if (!bowlStats[h.bowler]) bowlStats[h.bowler] = { balls: 0, runs: 0, wkts: 0, wides: 0, noballs: 0, dots: 0 };
-      if (h.type === 'wide') { bowlStats[h.bowler].wides++; return; }
+      if (h.type === 'wide') { bowlStats[h.bowler].wides++; bowlStats[h.bowler].runs += (h.runs || 0); return; }
       if (h.type === 'noball') { bowlStats[h.bowler].noballs++; return; }
       if (h.type === 'penalty') { return; }
       bowlStats[h.bowler].balls++;
@@ -2362,7 +2578,7 @@ function generateSessionHTML(date, idx, session) {
     + '</div>'
 
     + '<div class="section-title">Batting</div>'
-    + '<table><tr><th>Player</th><th>R</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>SR</th></tr>'
+    + '<table><tr><th>Player</th><th>R</th><th>-</th><th>Net</th><th>B</th><th>Dots</th><th>4s</th><th>6s</th><th>3s</th><th>Bn</th><th>SR</th><th>Out</th></tr>'
     + batRows + '</table>'
 
     + (bowlRows2 ? '<div class="section-title">Bowling</div>'
