@@ -338,17 +338,17 @@ function closeAllModals() {
 
 // RENDER
 function render() {
-  if (S().mode === 'standard') { renderStandard(); return; }
-  const v = S().view;
   try {
+    if (S().mode === 'standard') { renderStandard(); return; }
+    const v = S().view;
     if (v === 'setup') return renderSetup();
     if (v === 'summary') return renderSummary();
     if (v === 'pairselect') return renderPairSelect();
     if (v === 'scorecard') return renderScorecard();
     renderMatch();
   } catch (e) {
-    console.error(e);
-    document.getElementById('app').innerHTML = logoHTML() + '<div class="card" style="text-align:center;padding:30px 20px"><h2>Error</h2><p style="color:var(--red);margin:12px 0">' + e.message + '</p><button class="btn btn-orange" onclick="resetApp()">Restart</button></div>';
+    window._errorShown = true;
+    document.getElementById('app').innerHTML = logoHTML() + '<div class="card" style="text-align:center;padding:30px 20px;border:2px solid var(--red)"><h2 style="color:var(--red)">Error</h2><p style="font-size:13px;color:var(--red);margin:12px 0">' + (e && e.message ? e.message : e) + '</p><pre style="font-size:10px;text-align:left;max-height:200px;overflow:auto;background:var(--card);padding:10px;border-radius:6px;margin:6px 0;color:var(--dim)">' + (e && e.stack ? e.stack.substring(0,600) : '') + '</pre><button class="btn btn-orange" onclick="resetApp()">Restart</button></div>';
   }
 }
 
@@ -3233,7 +3233,9 @@ function copySessionData() {
   }
 }
 
+window._errorShown = false;
 window.onerror = function(msg, source, line, col, err) {
+  if (window._errorShown) return true; // Already handled by a try-catch
   var app = document.getElementById('app');
   if (app && !app.innerHTML.includes('FATAL ERROR')) {
     var detail = (err && err.message ? err.message : msg);
@@ -3243,7 +3245,6 @@ window.onerror = function(msg, source, line, col, err) {
       + '<button class="btn btn-orange btn-block" onclick="resetApp()" style="margin-top:8px">Restart</button>'
       + '<button class="btn btn-dark btn-block" onclick="extractSessionData()" style="margin-top:6px">📦 Extract Session Data</button></div>';
   }
-  console.error('Uncaught:', msg, source, line, col, err);
 };
 
 // ===================================================================
@@ -3748,7 +3749,7 @@ document.addEventListener('keydown', function(e2) {
   else if (e2.key === 'x') { e2.preventDefault(); standardWicket(); }
 });
 
-render();
+try { render(); } catch(e) { window._errorShown = true; document.getElementById('app').innerHTML = logoHTML() + '<div class="card" style="text-align:center;padding:30px 20px;border:2px solid var(--red)"><h2 style="color:var(--red)">Startup Error</h2><p style="font-size:13px;color:var(--red);margin:12px 0">' + (e && e.message ? e.message : e) + '</p><pre style="font-size:10px;text-align:left;max-height:200px;overflow:auto;background:var(--card);padding:10px;border-radius:6px;margin:6px 0;color:var(--dim)">' + (e && e.stack ? e.stack.substring(0,600) : '') + '</pre><button class="btn btn-orange" onclick="resetApp()">Restart</button></div>'; }
 
 // Centre mode keyboard handler
 document.addEventListener('keydown', function(e) {
