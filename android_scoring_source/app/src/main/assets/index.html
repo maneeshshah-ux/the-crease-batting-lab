@@ -2060,8 +2060,8 @@ function tryReadSession(key) {
 
 /** Clear both interrupted-session markers */
 function clearInterruptedSession() {
-  localStorage.removeItem(STORAGE_CURRENT);
-  localStorage.removeItem(STORAGE_BACKUP);
+  try { localStorage.removeItem(STORAGE_CURRENT); } catch(e) {}
+  try { localStorage.removeItem(STORAGE_BACKUP); } catch(e) {}
 }
 
 /** Fully restore an interrupted or saved session */
@@ -3190,29 +3190,56 @@ function extractSessionData() {
   try { data.current = JSON.parse(localStorage.getItem('crease_current_session')); } catch(e) { data.current = '(raw) ' + localStorage.getItem('crease_current_session'); }
   try { data.sessions = JSON.parse(localStorage.getItem('crease_sessions')); } catch(e) { data.sessions = '(raw) ' + localStorage.getItem('crease_sessions'); }
   var json = JSON.stringify(data, null, 2);
-  // Try Web Share API with text first (works on file:// on Android)
-  if (navigator.share) {
-    navigator.share({ title: 'CREASE Session Data', text: json }).catch(function() {
-      // Fallback: download as file
-      var url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-      var a = document.createElement('a');
-      a.href = url; a.download = 'crease_session_data.json';
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
-    });
-  } else {
-    var url = URL.createObjectURL(new Blob([json], { type: 'application/json' }));
-    var a = document.createElement('a');
-    a.href = url; a.download = 'crease_session_data.json';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+  // If Android bridge available (new APK), use it for reliable share/save
+  if (typeof CreaseBridge !== 'undefined' && CreaseBridge.shareData) {
+    CreaseBridge.shareData(json);
+    return;
+  }
+  // Show JSON in-page in a textarea for easy copy
+  var app = document.getElementById('app');
+  if (!app) return;
+  var safeJson = json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  app.innerHTML = logoHTML()
+    + '<div class="card" style="text-align:center;padding:16px">'
+    + '<h2 style="color:var(--orange)">Session Data</h2>'
+    + '<p style="font-size:11px;color:var(--dim);margin:8px 0">Select all below, copy, and send to support.</p>'
+    + '<textarea id="session-data-text" readonly style="width:100%;height:300px;font-size:10px;font-family:monospace;background:#1a1a2e;color:#c0c0c0;border:1px solid var(--border);border-radius:8px;padding:8px;resize:vertical;white-space:pre;overflow:auto">' + safeJson + '</textarea>'
+    + '<div style="display:flex;gap:8px;margin-top:10px">'
+    + '<button class="btn btn-orange" style="flex:1" onclick="copySessionData()">Copy All</button>'
+    + '<button class="btn btn-dark" style="flex:1" onclick="resetApp()">Restart</button>'
+    + '</div></div>';
+  // Auto-select for easy copy
+  setTimeout(function() {
+    var ta = document.getElementById('session-data-text');
+    if (ta) { ta.focus(); ta.select(); }
+  }, 100);
+}
+function copySessionData() {
+  var ta = document.getElementById('session-data-text');
+  if (!ta) return;
+  ta.focus(); ta.select();
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(ta.value).then(function() {
+        alert('Copied to clipboard!');
+      }).catch(function() {
+        document.execCommand('copy');
+      });
+    } else {
+      document.execCommand('copy');
+    }
+  } catch(e) {
+    alert('Long-press the text and select Copy.');
   }
 }
 
 window.onerror = function(msg, source, line, col, err) {
   var app = document.getElementById('app');
   if (app && !app.innerHTML.includes('FATAL ERROR')) {
-    app.innerHTML = logoHTML() + '<div class="card" style="text-align:center;padding:30px 20px;border:2px solid var(--red)"><h2 style="color:var(--red)">FATAL ERROR</h2><p style="font-size:12px;color:var(--red);margin:10px 0">' + (err && err.message ? err.message : msg) + '</p><p style="font-size:10px;color:var(--dim)">' + (source || '') + ':' + line + '</p>'
+    var detail = (err && err.message ? err.message : msg);
+    var stack = (err && err.stack) ? err.stack.substring(0, 300) : '';
+    app.innerHTML = logoHTML() + '<div class="card" style="text-align:center;padding:30px 20px;border:2px solid var(--red)"><h2 style="color:var(--red)">FATAL ERROR</h2><p style="font-size:12px;color:var(--red);margin:10px 0">' + detail + '</p><p style="font-size:10px;color:var(--dim)">' + (source || '') + ':' + line + '</p>'
+      + (stack ? '<pre style="font-size:9px;text-align:left;max-height:120px;overflow:auto;background:var(--card);padding:8px;border-radius:6px;margin:6px 0">' + stack + '</pre>' : '')
       + '<button class="btn btn-orange btn-block" onclick="resetApp()" style="margin-top:8px">Restart</button>'
       + '<button class="btn btn-dark btn-block" onclick="extractSessionData()" style="margin-top:6px">📦 Extract Session Data</button></div>';
   }

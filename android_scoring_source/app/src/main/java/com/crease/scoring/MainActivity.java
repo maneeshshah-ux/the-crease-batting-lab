@@ -92,6 +92,41 @@ public class MainActivity extends Activity {
             WebView.setWebContentsDebuggingEnabled(true);
         }
 
+        // JavaScript interface for data extraction
+        webView.addJavascriptInterface(new Object() {
+            @JavascriptInterface
+            public void shareData(String json) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        try {
+                            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                            shareIntent.setType("text/plain");
+                            shareIntent.putExtra(Intent.EXTRA_TEXT, json);
+                            startActivity(Intent.createChooser(shareIntent, "Share Session Data"));
+                        } catch (Exception e) {
+                            // Fallback — write to file
+                            try {
+                                File downloadsDir = Environment.getExternalStoragePublicDirectory(
+                                    Environment.DIRECTORY_DOWNLOADS);
+                                File file = new File(downloadsDir,
+                                    "crease_session_data_" + System.currentTimeMillis() + ".json");
+                                FileOutputStream fos = new FileOutputStream(file);
+                                fos.write(json.getBytes("UTF-8"));
+                                fos.close();
+                                // Notify via JavaScript
+                                webView.evaluateJavascript(
+                                    "alert('Session data saved to: " + file.getAbsolutePath() + "')", null);
+                            } catch (Exception e2) {
+                                webView.evaluateJavascript(
+                                    "alert('Could not save data: " + e2.getMessage().replace("'", "\\'") + "')", null);
+                            }
+                        }
+                    }
+                });
+            }
+        }, "CreaseBridge");
+
         // Main WebView client — intercepts asset requests and serves from bundle
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -219,7 +254,7 @@ public class MainActivity extends Activity {
             String html = baos.toString("UTF-8");
 
             // Load with virtual origin — relative URLs like crease_logo.png
-            // resolve to https://crease.app/crease_logo.png and are intercepted
+            // resolve to https://crease.localhost/crease_logo.png and are intercepted
             // by shouldInterceptRequest which serves them from assets.
             // This gives us a valid HTTPS origin for localStorage and JS.
             webView.loadDataWithBaseURL(appOrigin + "/", html, "text/html", "UTF-8", null);
